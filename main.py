@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from models import Feedback
+from backend.src.foundation.models import Feedback
 
 app = FastAPI()
 
