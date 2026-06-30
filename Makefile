@@ -1,4 +1,4 @@
-.PHONY: lint format typecheck test check
+.PHONY: lint format typecheck test check fe-lint
 
 lint:
 	cd backend && uv run ruff check .
@@ -12,4 +12,7 @@ typecheck:
 test:
 	cd backend && uv run pytest
 
-check: lint format typecheck test
+fe-lint:
+	cd frontend && npm run lint
+
+check: lint format typecheck test fe-lint
