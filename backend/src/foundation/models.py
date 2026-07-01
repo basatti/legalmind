@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, EmailStr, Field
+from sqlmodel import Field, SQLModel
 
 
 # Enums
@@ -17,41 +17,41 @@ class CaseStatus(StrEnum):
 
 
 # Entities
-class User(BaseModel):
-    id: int
+class User(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
     username: str
-    email: EmailStr
+    email: str
     role: Role
 
 
-class Case(BaseModel):
-    id: int
+class Case(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
     title: str
     description: str | None = None
     status: CaseStatus = CaseStatus.OPEN
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-class Assignment(BaseModel):
-    id: int
-    case_id: int
-    user_id: int
+class Assignment(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    case_id: int = Field(foreign_key="case.id")
+    user_id: int = Field(foreign_key="user.id")
 
 
-class Document(BaseModel):
-    id: int
+class Document(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
     title: str
     file_path: str
 
 
-class Feedback(BaseModel):
-    id: int
+class Feedback(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
     content: str
     rating: int = Field(ge=1, le=5)
 
 
-class Review(BaseModel):
-    id: int
-    case_id: int
-    reviewer_id: int
+class Review(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    case_id: int = Field(foreign_key="case.id")
+    reviewer_id: int = Field(foreign_key="user.id")
     comments: str
