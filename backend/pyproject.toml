@@ -5,7 +5,9 @@ description = "Backend service"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.138.2",
     "pydantic[email]>=2.13.4",
+    "uvicorn>=0.49.0",
 ]
 
 [project.optional-dependencies]
@@ -21,7 +23,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/foundation"]
+packages = ["src/foundation", "src/routers", "src/services", "src/repositories"]
 
 # ---------------------------------------------------------------------------
 # Ruff (lint + format)
