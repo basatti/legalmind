@@ -9,3 +9,8 @@ app.include_router(case_router)
 @app.get("/")
 def root():
     return {"message": "Welcome to LegalMind API"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}

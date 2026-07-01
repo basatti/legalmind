@@ -7,3 +7,4 @@ backend/.venv/
 .coverage
 .mypy_cache/
 .ruff_cache/
+.env
