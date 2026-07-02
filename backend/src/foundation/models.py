@@ -19,9 +19,18 @@ class CaseStatus(StrEnum):
 # Entities
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    username: str
-    email: str
+    email: str = Field(unique=True)
+    full_name: str
+    hashed_password: str
     role: Role
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class Session(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    expires_at: datetime
 
 
 class Case(SQLModel, table=True):
