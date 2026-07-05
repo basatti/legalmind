@@ -28,4 +28,3 @@ class AuthService:
         )
 
         return self.user_repository.add(new_user)
-    
