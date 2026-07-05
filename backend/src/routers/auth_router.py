@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, status
 from sqlmodel import Session
 
 from foundation.database import get_session
+from foundation.models import User
 from foundation.schemas import UserRegisterRequest, UserResponse
 from repositories.user_repository import UserRepository
-from foundation.models import User
 from services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
