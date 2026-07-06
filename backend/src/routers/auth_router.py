@@ -36,6 +36,7 @@ def get_auth_service(session: Session = Depends(get_session)) -> AuthService:
 # current_user dependency (LEG-23)
 # ---------------------------------------------------------------------------
 
+
 def current_user(
     service: AuthService = Depends(get_auth_service),
     session_id: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
@@ -59,6 +60,7 @@ def current_user(
 # POST /auth/register  (LEG-21)
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "/register",
     response_model=UserResponse,
@@ -75,6 +77,7 @@ def register(
 # POST /auth/login  (LEG-22)
 # ---------------------------------------------------------------------------
 
+
 @router.post("/login", response_model=MessageResponse)
 def login(
     data: LoginRequest,
@@ -87,10 +90,10 @@ def login(
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
-        httponly=True,        # not accessible via JS — prevents XSS theft
-        samesite="lax",       # CSRF protection for browser requests
-        secure=False,         # set True in production (HTTPS only)
-        max_age=60 * 60 * 24, # 24 hours, matches SESSION_TTL_HOURS
+        httponly=True,  # not accessible via JS — prevents XSS theft
+        samesite="lax",  # CSRF protection for browser requests
+        secure=False,  # set True in production (HTTPS only)
+        max_age=60 * 60 * 24,  # 24 hours, matches SESSION_TTL_HOURS
     )
 
     return MessageResponse(message="Logged in successfully")
@@ -99,6 +102,7 @@ def login(
 # ---------------------------------------------------------------------------
 # POST /auth/logout  (LEG-22)
 # ---------------------------------------------------------------------------
+
 
 @router.post("/logout", response_model=MessageResponse)
 def logout(
@@ -122,6 +126,7 @@ def logout(
 # ---------------------------------------------------------------------------
 # GET /auth/me  (LEG-23)
 # ---------------------------------------------------------------------------
+
 
 @router.get("/me", response_model=UserResponse)
 def me(user: User = Depends(current_user)) -> User:
