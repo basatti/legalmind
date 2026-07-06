@@ -26,3 +26,17 @@ class UserResponse(BaseModel):
     full_name: str
     role: str
     is_active: bool
+
+
+# ---------------------------------------------------------------------------
+# LEG-22: Login
+# ---------------------------------------------------------------------------
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class MessageResponse(BaseModel):
+    message: str
