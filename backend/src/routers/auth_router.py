@@ -1,6 +1,6 @@
 """Authentication endpoints."""
 
-from fastapi import APIRouter, Cookie, Depends, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlmodel import Session
 
 from foundation.database import get_session
@@ -17,7 +17,6 @@ from services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Cookie name — one constant, referenced in login, logout, and current_user
 SESSION_COOKIE_NAME = "session_id"
 
 
@@ -34,9 +33,31 @@ def get_auth_service(session: Session = Depends(get_session)) -> AuthService:
 
 
 # ---------------------------------------------------------------------------
-# POST /auth/register  (LEG-21, unchanged)
+# current_user dependency (LEG-23)
 # ---------------------------------------------------------------------------
 
+def current_user(
+    service: AuthService = Depends(get_auth_service),
+    session_id: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+) -> User:
+    """Resolve the session cookie to the authenticated User.
+
+    Raises HTTP 401 if:
+    - No session cookie is present
+    - Session does not exist in the database
+    - Session has expired
+    """
+    if session_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    return service.get_user_from_session(session_id)
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/register  (LEG-21)
+# ---------------------------------------------------------------------------
 
 @router.post(
     "/register",
@@ -54,7 +75,6 @@ def register(
 # POST /auth/login  (LEG-22)
 # ---------------------------------------------------------------------------
 
-
 @router.post("/login", response_model=MessageResponse)
 def login(
     data: LoginRequest,
@@ -67,10 +87,10 @@ def login(
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
-        httponly=True,  # not accessible via JS — prevents XSS theft
-        samesite="lax",  # CSRF protection for browser requests
-        secure=False,  # set True in production (HTTPS only)
-        max_age=60 * 60 * 24,  # 24 hours, matches SESSION_TTL_HOURS
+        httponly=True,        # not accessible via JS — prevents XSS theft
+        samesite="lax",       # CSRF protection for browser requests
+        secure=False,         # set True in production (HTTPS only)
+        max_age=60 * 60 * 24, # 24 hours, matches SESSION_TTL_HOURS
     )
 
     return MessageResponse(message="Logged in successfully")
@@ -79,7 +99,6 @@ def login(
 # ---------------------------------------------------------------------------
 # POST /auth/logout  (LEG-22)
 # ---------------------------------------------------------------------------
-
 
 @router.post("/logout", response_model=MessageResponse)
 def logout(
@@ -98,3 +117,13 @@ def logout(
     )
 
     return MessageResponse(message="Logged out successfully")
+
+
+# ---------------------------------------------------------------------------
+# GET /auth/me  (LEG-23)
+# ---------------------------------------------------------------------------
+
+@router.get("/me", response_model=UserResponse)
+def me(user: User = Depends(current_user)) -> User:
+    """Return the currently authenticated user."""
+    return user
