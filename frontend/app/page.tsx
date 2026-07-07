@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div className="text-center">
@@ -7,6 +9,12 @@ export default function Home() {
       <p className="text-sm text-neutral-500 mt-2">
         Sign in to manage your cases.
       </p>
+      <Link
+        href="/login"
+        className="inline-block mt-4 text-sm text-neutral-900 underline"
+      >
+        Go to sign in
+      </Link>
     </div>
   );
 }

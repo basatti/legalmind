@@ -11,10 +11,11 @@ export type CaseStatus = "open" | "in_progress" | "closed";
 // ---------------------------------------------------------------------------
 
 export interface User {
-  id: number | null;
-  username: string;
+  id: number;
   email: string;
+  full_name: string;
   role: Role;
+  is_active: boolean;
 }
 
 export interface Case {
@@ -60,4 +61,13 @@ export interface RootResponse {
 
 export interface HealthResponse {
   status: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface MessageResponse {
+  message: string;
 }

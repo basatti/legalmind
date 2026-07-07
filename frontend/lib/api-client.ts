@@ -1,4 +1,11 @@
-import type { Case, HealthResponse, RootResponse } from "@/types/api";
+import type {
+  Case,
+  HealthResponse,
+  LoginRequest,
+  MessageResponse,
+  RootResponse,
+  User,
+} from "@/types/api";
 
 // ---------------------------------------------------------------------------
 // Base config
@@ -18,6 +25,7 @@ async function apiFetch<T>(
   const url = `${BASE_URL}${path}`;
 
   const res = await fetch(url, {
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options.headers,
@@ -74,6 +82,28 @@ export const apiClient = {
         method: "POST",
         body: JSON.stringify(data),
       });
+    },
+  },
+
+  auth: {
+    /** POST /auth/login — verify credentials, server sets session cookie */
+    login(data: LoginRequest): Promise<MessageResponse> {
+      return apiFetch<MessageResponse>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+
+    /** POST /auth/logout — invalidate session, clears cookie */
+    logout(): Promise<MessageResponse> {
+      return apiFetch<MessageResponse>("/auth/logout", {
+        method: "POST",
+      });
+    },
+
+    /** GET /auth/me — returns the current user, or throws 401 if not logged in */
+    me(): Promise<User> {
+      return apiFetch<User>("/auth/me");
     },
   },
 } as const;

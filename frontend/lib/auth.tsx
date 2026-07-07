@@ -3,9 +3,11 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
+import { apiClient } from "@/lib/api-client";
 import type { User } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -15,9 +17,10 @@ import type { User } from "@/types/api";
 interface AuthContext {
   user: User | null;
   isAuthenticated: boolean;
-  /** Placeholder — replace with real auth logic later */
-  login: (user: User) => void;
-  logout: () => void;
+  /** True while checking for an existing session on first load */
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContext | null>(null);
@@ -28,18 +31,31 @@ const AuthContext = createContext<AuthContext | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  function login(u: User) {
-    setUser(u);
+  // On first mount, ask the backend if we already have a valid session cookie.
+  useEffect(() => {
+    apiClient.auth
+      .me()
+      .then((currentUser) => setUser(currentUser))
+      .catch(() => setUser(null)) // 401 means "not logged in" — not an error we care about here
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  async function login(email: string, password: string) {
+    await apiClient.auth.login({ email, password }); // throws ApiError on wrong credentials
+    const currentUser = await apiClient.auth.me();
+    setUser(currentUser);
   }
 
-  function logout() {
+  async function logout() {
+    await apiClient.auth.logout();
     setUser(null);
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: user !== null, login, logout }}
+      value={{ user, isAuthenticated: user !== null, isLoading, login, logout }}
     >
       {children}
     </AuthContext.Provider>
