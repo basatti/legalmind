@@ -82,6 +82,7 @@ class CaseResponse(BaseModel):
     status: str
     created_at: datetime
 
+
 # ---------------------------------------------------------------------------
 # LEG-XX: Case state transitions
 # ---------------------------------------------------------------------------

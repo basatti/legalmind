@@ -9,9 +9,7 @@ from repositories.case_repository import CaseRepository
 class IllegalTransitionError(Exception):
     """Raised when a case status transition violates the state machine."""
 
-    def __init__(
-        self, current: CaseStatus, target: CaseStatus, allowed: list[CaseStatus]
-    ):
+    def __init__(self, current: CaseStatus, target: CaseStatus, allowed: list[CaseStatus]):
         self.current = current
         self.target = target
         self.allowed = allowed
