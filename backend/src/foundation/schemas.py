@@ -1,5 +1,7 @@
 """Pydantic schemas for request/response validation."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, field_validator
 
 
@@ -40,3 +42,40 @@ class LoginRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+
+# ---------------------------------------------------------------------------
+# LEG-36: Case CRUD
+# ---------------------------------------------------------------------------
+
+
+class CaseCreateRequest(BaseModel):
+    title: str
+    description: str | None = None
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Title must not be empty")
+        return value
+
+
+class CaseUpdateRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Title must not be empty")
+        return value
+
+
+class CaseResponse(BaseModel):
+    id: int
+    title: str
+    description: str | None
+    status: str
+    created_at: datetime

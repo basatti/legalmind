@@ -1,6 +1,8 @@
 from datetime import datetime
 from enum import StrEnum
 
+from sqlalchemy import Column
+from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Index, SQLModel
 
 # ---------------------------------------------------------------------------
@@ -47,7 +49,17 @@ class Case(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     title: str
     description: str | None = None
-    status: CaseStatus = CaseStatus.DRAFT
+    status: CaseStatus = Field(
+        default=CaseStatus.DRAFT,
+        sa_column=Column(
+            SAEnum(
+                CaseStatus,
+                values_callable=lambda enum_cls: [member.value for member in enum_cls],
+                name="casestatus",
+            ),
+            nullable=False,
+        ),
+    )
     created_at: datetime = Field(default_factory=datetime.now)
 
 
