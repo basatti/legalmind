@@ -1,22 +1,32 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Index, SQLModel
 
-
+# ---------------------------------------------------------------------------
 # Enums
+# ---------------------------------------------------------------------------
+
+
 class Role(StrEnum):
     ADMIN = "admin"
     USER = "user"
 
 
 class CaseStatus(StrEnum):
-    OPEN = "open"
+    DRAFT = "draft"
     IN_PROGRESS = "in_progress"
+    SUBMITTED_FOR_REVIEW = "submitted_for_review"
+    UNDER_REVIEW = "under_review"
+    REVISIONS_REQUESTED = "revisions_requested"
     CLOSED = "closed"
 
 
+# ---------------------------------------------------------------------------
 # Entities
+# ---------------------------------------------------------------------------
+
+
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     email: str = Field(unique=True)
@@ -37,11 +47,25 @@ class Case(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     title: str
     description: str | None = None
-    status: CaseStatus = CaseStatus.OPEN
+    status: CaseStatus = CaseStatus.DRAFT
     created_at: datetime = Field(default_factory=datetime.now)
 
 
 class Assignment(SQLModel, table=True):
+    """Edge in the user↔case bipartite graph.
+
+    Indexes on both foreign keys avoid full table scans on the two most
+    common lookups:
+      - "which cases is this user assigned to?"  → index on user_id  O(log n)
+      - "which users are assigned to this case?" → index on case_id  O(log n)
+    Without indexes both queries are O(n) full scans.
+    """
+
+    __table_args__ = (
+        Index("ix_assignment_case_id", "case_id"),
+        Index("ix_assignment_user_id", "user_id"),
+    )
+
     id: int | None = Field(default=None, primary_key=True)
     case_id: int = Field(foreign_key="case.id")
     user_id: int = Field(foreign_key="user.id")
