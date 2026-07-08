@@ -57,6 +57,8 @@ def upgrade() -> None:
 
     op.drop_column("case", "status")
 
+    op.execute("DROP TYPE casestatus")
+
     new_enum = sa.Enum(*NEW_STATUSES, name="casestatus")
     new_enum.create(op.get_bind())
 

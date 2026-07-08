@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, field_validator
 
+from foundation.models import CaseStatus
+
 
 class UserRegisterRequest(BaseModel):
     email: EmailStr
@@ -79,3 +81,11 @@ class CaseResponse(BaseModel):
     description: str | None
     status: str
     created_at: datetime
+
+# ---------------------------------------------------------------------------
+# LEG-XX: Case state transitions
+# ---------------------------------------------------------------------------
+
+
+class CaseTransitionRequest(BaseModel):
+    target_status: CaseStatus
