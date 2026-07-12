@@ -6,8 +6,8 @@ from datetime import UTC, datetime, timedelta
 from fastapi import HTTPException, status
 
 from foundation.hashing import hash_password, verify_password
-from foundation.models import Role, User
 from foundation.models import Session as SessionModel
+from foundation.models import User
 from foundation.schemas import LoginRequest, UserRegisterRequest
 from repositories.session_repository import SessionRepository
 from repositories.user_repository import UserRepository
@@ -41,7 +41,7 @@ class AuthService:
             email=data.email,
             full_name=data.full_name,
             hashed_password=hash_password(data.password),
-            role=Role.USER,
+            role=data.role,
         )
 
         return self.user_repository.add(new_user)

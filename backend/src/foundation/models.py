@@ -12,7 +12,9 @@ from sqlmodel import Field, Index, SQLModel
 
 class Role(StrEnum):
     ADMIN = "admin"
-    USER = "user"
+    PARTNER = "partner"
+    ATTORNEY = "attorney"
+    PARALEGAL = "paralegal"
 
 
 class CaseStatus(StrEnum):

@@ -4,13 +4,14 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, field_validator
 
-from foundation.models import CaseStatus
+from foundation.models import CaseStatus, Role
 
 
 class UserRegisterRequest(BaseModel):
     email: EmailStr
     full_name: str
     password: str
+    role: Role = Role.ATTORNEY  # default to lowest-privilege role
 
     @field_validator("password")
     @classmethod
@@ -28,7 +29,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     full_name: str
-    role: str
+    role: Role
     is_active: bool
 
 
