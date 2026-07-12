@@ -8,7 +8,12 @@ import pytest
 def register_and_login(client, email="user@example.com"):
     client.post(
         "/auth/register",
-        json={"email": email, "full_name": "Test User", "password": "password123"},
+        json={
+            "email": email,
+            "full_name": "Test User",
+            "password": "password123",
+            "role": "admin",  # CRUD/FSM tests check case behavior, not authorization
+        },
     )
     client.post("/auth/login", json={"email": email, "password": "password123"})
     return client

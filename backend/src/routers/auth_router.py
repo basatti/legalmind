@@ -1,10 +1,13 @@
 """Authentication endpoints."""
 
+from collections.abc import Callable
+
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlmodel import Session
 
 from foundation.database import get_session
 from foundation.models import User
+from foundation.permissions import Permission, has_any_permission
 from foundation.schemas import (
     LoginRequest,
     MessageResponse,
@@ -54,6 +57,35 @@ def current_user(
             detail="Not authenticated",
         )
     return service.get_user_from_session(session_id)
+
+
+# ---------------------------------------------------------------------------
+# require_permission dependency factory (LEG-39)
+# ---------------------------------------------------------------------------
+
+
+def require_permission(*permissions: Permission) -> Callable[..., User]:
+    """Build a dependency that only lets the request through if the
+    logged-in user's role has at least one of the given permissions.
+
+    Usage: Depends(require_permission(Permission.CASE_SUBMIT_FOR_REVIEW))
+           Depends(require_permission(Permission.CASE_READ_ANY, Permission.CASE_READ_ASSIGNED))
+
+    Raises HTTP 403 if the role has none of the given permissions.
+    Runs current_user first, so an unauthenticated request still gets 401,
+    not 403.
+    """
+    required = set(permissions)
+
+    def checker(user: User = Depends(current_user)) -> User:
+        if not has_any_permission(user.role, required):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not permitted",
+            )
+        return user
+
+    return checker
 
 
 # ---------------------------------------------------------------------------

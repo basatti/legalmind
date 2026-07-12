@@ -5,6 +5,7 @@ def _login(client) -> None:
             "email": "case-tester@example.com",
             "full_name": "Case Tester",
             "password": "password123",
+            "role": "admin",  # CRUD tests check case behavior, not authorization
         },
     )
     client.post(
