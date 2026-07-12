@@ -1,8 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
+from foundation.models import Role, User
 from foundation.models import Session as SessionModel
-from foundation.models import User
-from foundation.models import Role
+
 
 def test_valid_login(client):
     client.post(
@@ -57,7 +57,7 @@ def test_invalid_or_expired_session(client, session):
         email="charlie@example.com",
         full_name="Charlie",
         hashed_password="irrelevant-for-this-test",
-       role=Role.ATTORNEY,
+        role=Role.ATTORNEY,
     )
     session.add(user)
     session.commit()
