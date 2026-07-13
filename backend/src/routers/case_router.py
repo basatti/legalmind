@@ -9,6 +9,7 @@ from foundation.schemas import (
     CaseTransitionRequest,
     CaseUpdateRequest,
 )
+from repositories.assignment_repository import AssignmentRepository
 from repositories.case_repository import CaseRepository
 from routers.auth_router import current_user, require_permission
 from services.case_service import CaseService, IllegalTransitionError
@@ -26,7 +27,10 @@ TRANSITION_PERMISSIONS: dict[CaseStatus, tuple[Permission, ...]] = {
 
 
 def get_case_service(session: Session = Depends(get_session)) -> CaseService:
-    return CaseService(CaseRepository(session))
+    return CaseService(
+        repository=CaseRepository(session),
+        assignment_repository=AssignmentRepository(session),
+    )
 
 
 def require_transition_permission(
@@ -34,14 +38,7 @@ def require_transition_permission(
     user: User = Depends(current_user),
 ) -> User:
     """Look up which permission this specific target_status requires,
-    then check the logged-in user's role has it. Runs before the route body.
-
-    If target_status has no row in TRANSITION_PERMISSIONS (e.g. "draft",
-    which nothing legally transitions to), skip the permission check
-    entirely and let the request through to the state machine — it's
-    the FSM's job to reject that as an illegal transition (409), not
-    this dependency's job to reject it as unauthorized (403).
-    """
+    then check the logged-in user's role has it."""
     required = TRANSITION_PERMISSIONS.get(data.target_status)
     if required is not None and not has_any_permission(user.role, set(required)):
         raise HTTPException(
@@ -54,11 +51,11 @@ def require_transition_permission(
 @router.get("/")
 def list_cases(
     service: CaseService = Depends(get_case_service),
-    _user: User = Depends(
+    user: User = Depends(
         require_permission(Permission.CASE_READ_ANY, Permission.CASE_READ_ASSIGNED)
     ),
 ) -> list[Case]:
-    return service.list_cases()
+    return service.list_cases(user)
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -74,11 +71,11 @@ def create_case(
 def get_case(
     case_id: int,
     service: CaseService = Depends(get_case_service),
-    _user: User = Depends(
+    user: User = Depends(
         require_permission(Permission.CASE_READ_ANY, Permission.CASE_READ_ASSIGNED)
     ),
 ) -> Case:
-    return service.get_case(case_id)
+    return service.get_case(case_id, user)
 
 
 @router.patch("/{case_id}")
@@ -86,11 +83,11 @@ def update_case(
     case_id: int,
     data: CaseUpdateRequest,
     service: CaseService = Depends(get_case_service),
-    _user: User = Depends(
+    user: User = Depends(
         require_permission(Permission.CASE_EDIT_ANY, Permission.CASE_EDIT_ASSIGNED)
     ),
 ) -> Case:
-    return service.update_case(case_id, data)
+    return service.update_case(case_id, data, user)
 
 
 @router.post("/{case_id}/transition")
@@ -98,10 +95,10 @@ def transition_case(
     case_id: int,
     data: CaseTransitionRequest,
     service: CaseService = Depends(get_case_service),
-    _user: User = Depends(require_transition_permission),
+    user: User = Depends(require_transition_permission),
 ) -> Case:
     try:
-        return service.transition_status(case_id, data.target_status)
+        return service.transition_status(case_id, data.target_status, user)
     except IllegalTransitionError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
