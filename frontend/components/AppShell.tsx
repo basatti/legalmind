@@ -2,9 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
+import { usePermission } from "@/lib/usePermission";
 
 // ---------------------------------------------------------------------------
-// Logged-out shell — shown to unauthenticated users
+// Logged-out shell
 // ---------------------------------------------------------------------------
 
 function GuestShell({ children }: { children: ReactNode }) {
@@ -24,7 +25,29 @@ function GuestShell({ children }: { children: ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
-// Logged-in shell — shown to authenticated users
+// Role-aware sidebar nav
+// ---------------------------------------------------------------------------
+
+function SideNav() {
+  const canManageUsers = usePermission("user:manage");
+  const canAssign = usePermission("case:assign");
+
+  return (
+    <nav className="w-52 bg-white border-r border-neutral-100 px-4 py-6 flex flex-col gap-1">
+      {/* Everyone with case access sees Cases */}
+      <NavItem href="/cases">Cases</NavItem>
+
+      {/* Partner + Admin only — assign cases */}
+      {canAssign && <NavItem href="/cases/assign">Assign Cases</NavItem>}
+
+      {/* Admin only — user management */}
+      {canManageUsers && <NavItem href="/admin/users">User Management</NavItem>}
+    </nav>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Logged-in shell
 // ---------------------------------------------------------------------------
 
 function AuthenticatedShell({ children }: { children: ReactNode }) {
@@ -34,7 +57,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
     try {
       await logout();
     } catch {
-      // Best-effort — even if the backend call fails, nothing else to do here.
+      // Best-effort
     }
   }
 
@@ -46,7 +69,12 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
         </span>
         <div className="flex items-center gap-4">
           {user && (
-            <span className="text-xs text-neutral-500">{user.email}</span>
+            <>
+              <span className="text-xs text-neutral-400 capitalize">
+                {user.role}
+              </span>
+              <span className="text-xs text-neutral-500">{user.email}</span>
+            </>
           )}
           <button
             onClick={handleLogout}
@@ -57,9 +85,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <div className="flex flex-1">
-        <nav className="w-52 bg-white border-r border-neutral-100 px-4 py-6 flex flex-col gap-1">
-          <NavItem href="/cases">Cases</NavItem>
-        </nav>
+        <SideNav />
         <main className="flex-1 px-8 py-6">{children}</main>
       </div>
     </div>
@@ -82,7 +108,7 @@ function NavItem({ href, children }: { href: string; children: ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
-// AppShell — entry point, switches based on auth state
+// AppShell — switches based on auth state
 // ---------------------------------------------------------------------------
 
 export function AppShell({ children }: { children: ReactNode }) {

@@ -2,9 +2,15 @@
 // Enums — mirror backend Role and CaseStatus StrEnums exactly
 // ---------------------------------------------------------------------------
 
-export type Role = "admin" | "user";
+export type Role = "admin" | "partner" | "attorney" | "paralegal";
 
-export type CaseStatus = "open" | "in_progress" | "closed";
+export type CaseStatus =
+  | "draft"
+  | "in_progress"
+  | "submitted_for_review"
+  | "under_review"
+  | "revisions_requested"
+  | "closed";
 
 // ---------------------------------------------------------------------------
 // Entities — mirror backend SQLModel table models exactly
@@ -52,7 +58,7 @@ export interface Review {
 }
 
 // ---------------------------------------------------------------------------
-// API response shapes — root and health endpoints
+// API response shapes
 // ---------------------------------------------------------------------------
 
 export interface RootResponse {
