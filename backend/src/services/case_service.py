@@ -13,15 +13,11 @@ from repositories.case_repository import CaseRepository
 class IllegalTransitionError(Exception):
     """Raised when a case status transition violates the state machine."""
 
-    def __init__(
-        self, current: CaseStatus, target: CaseStatus, allowed: list[CaseStatus]
-    ):
+    def __init__(self, current: CaseStatus, target: CaseStatus, allowed: list[CaseStatus]):
         self.current = current
         self.target = target
         self.allowed = allowed
-        allowed_str = (
-            [s.value for s in allowed] if allowed else "none (terminal state)"
-        )
+        allowed_str = [s.value for s in allowed] if allowed else "none (terminal state)"
         super().__init__(
             f"Cannot transition case from '{current.value}' to '{target.value}'. "
             f"Allowed transitions from '{current.value}': {allowed_str}"
@@ -119,9 +115,7 @@ class CaseService:
             case.description = data.description
         return self.repository.update(case)
 
-    def transition_status(
-        self, case_id: int, target_status: CaseStatus, user: User
-    ) -> Case:
+    def transition_status(self, case_id: int, target_status: CaseStatus, user: User) -> Case:
         case = self.repository.get_by_id(case_id)
         if case is None:
             raise HTTPException(
