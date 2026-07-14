@@ -130,4 +130,3 @@ class Review(SQLModel, table=True):
     case_id: int = Field(foreign_key="case.id")
     reviewer_id: int = Field(foreign_key="user.id")
     comments: str
-    
