@@ -39,3 +39,10 @@ class AssignmentRepository:
             select(Assignment.case_id).where(Assignment.user_id == user_id)
         ).all()
         return list(results)
+
+    def add(self, assignment: Assignment) -> Assignment:
+        """Create a new edge between a user and a case."""
+        self.session.add(assignment)
+        self.session.commit()
+        self.session.refresh(assignment)
+        return assignment

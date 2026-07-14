@@ -2,15 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from foundation.database import get_session
-from foundation.models import Case, CaseStatus, User
+from foundation.models import Assignment, Case, CaseStatus, User
 from foundation.permissions import Permission, has_any_permission
 from foundation.schemas import (
+    AssignmentCreateRequest,
+    AssignmentResponse,
     CaseCreateRequest,
     CaseTransitionRequest,
     CaseUpdateRequest,
 )
 from repositories.assignment_repository import AssignmentRepository
 from repositories.case_repository import CaseRepository
+from repositories.user_repository import UserRepository
 from routers.auth_router import current_user, require_permission
 from services.case_service import CaseService, IllegalTransitionError
 
@@ -30,6 +33,7 @@ def get_case_service(session: Session = Depends(get_session)) -> CaseService:
     return CaseService(
         repository=CaseRepository(session),
         assignment_repository=AssignmentRepository(session),
+        user_repository=UserRepository(session),
     )
 
 
@@ -104,3 +108,18 @@ def transition_case(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+
+
+@router.post(
+    "/{case_id}/assign",
+    response_model=AssignmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def assign_case(
+    case_id: int,
+    data: AssignmentCreateRequest,
+    service: CaseService = Depends(get_case_service),
+    _user: User = Depends(require_permission(Permission.CASE_ASSIGN)),
+) -> Assignment:
+    """Assign an Attorney or Paralegal to a case. Partner/Admin only."""
+    return service.assign_user(case_id, data.user_id)

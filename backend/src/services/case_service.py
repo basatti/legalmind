@@ -3,11 +3,12 @@
 from fastapi import HTTPException, status
 
 from foundation.case_state_machine import CaseStateMachine
-from foundation.models import Case, CaseStatus, User
+from foundation.models import Assignment, Case, CaseStatus, Role, User
 from foundation.permissions import Permission, has_permission
 from foundation.schemas import CaseCreateRequest, CaseUpdateRequest
 from repositories.assignment_repository import AssignmentRepository
 from repositories.case_repository import CaseRepository
+from repositories.user_repository import UserRepository
 
 
 class IllegalTransitionError(Exception):
@@ -29,9 +30,11 @@ class CaseService:
         self,
         repository: CaseRepository,
         assignment_repository: AssignmentRepository,
+        user_repository: UserRepository,
     ) -> None:
         self.repository = repository
         self.assignment_repository = assignment_repository
+        self.user_repository = user_repository
         self.state_machine = CaseStateMachine()
 
     # ------------------------------------------------------------------
@@ -130,3 +133,46 @@ class CaseService:
 
         case.status = target_status
         return self.repository.update(case)
+
+    # ------------------------------------------------------------------
+    # Assignment (LEG-45)
+    # ------------------------------------------------------------------
+
+    def assign_user(self, case_id: int, target_user_id: int) -> Assignment:
+        """Assign an Attorney or Paralegal to a case.
+
+        Partner/Admin only — checked at the router via require_permission,
+        not here, matching the pattern used for create_case.
+
+        Raises 404 if the case or target user doesn't exist, 400 if the
+        target user isn't an Attorney/Paralegal, 409 if already assigned.
+        """
+        case = self.repository.get_by_id(case_id)
+        if case is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Case not found",
+            )
+
+        target_user = self.user_repository.get_by_id(target_user_id)
+        if target_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        if target_user.role not in (Role.ATTORNEY, Role.PARALEGAL):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only attorneys and paralegals can be assigned to a case",
+            )
+
+        assert target_user.id is not None
+        if self.assignment_repository.is_assigned(target_user.id, case_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="User is already assigned to this case",
+            )
+
+        assignment = Assignment(case_id=case_id, user_id=target_user_id)
+        return self.assignment_repository.add(assignment)
