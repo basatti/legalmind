@@ -17,6 +17,15 @@ class Role(StrEnum):
     PARALEGAL = "paralegal"
 
 
+class Permission(StrEnum):
+    CASE_READ_ANY = "case:read:any"
+    CASE_READ_ASSIGNED = "case:read:assigned"
+    CASE_WRITE = "case:write"
+    CASE_ASSIGN = "case:assign"
+    CASE_REVIEW = "case:review"
+    CASE_SUBMIT = "case:submit"
+
+
 class CaseStatus(StrEnum):
     DRAFT = "draft"
     IN_PROGRESS = "in_progress"
@@ -75,12 +84,12 @@ class Case(SQLModel, table=True):
 
 
 class Assignment(SQLModel, table=True):
-    """Edge in the user↔case bipartite graph.
+    """Edge in the user-case bipartite graph.
 
     Indexes on both foreign keys avoid full table scans on the two most
     common lookups:
-      - "which cases is this user assigned to?"  → index on user_id  O(log n)
-      - "which users are assigned to this case?" → index on case_id  O(log n)
+      - "which cases is this user assigned to?"  -> index on user_id  O(log n)
+      - "which users are assigned to this case?" -> index on case_id  O(log n)
     Without indexes both queries are O(n) full scans.
     """
 
@@ -92,6 +101,16 @@ class Assignment(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     case_id: int = Field(foreign_key="case.id")
     user_id: int = Field(foreign_key="user.id")
+
+
+class RolePermission(SQLModel, table=True):
+    """Edge in the role-permission mapping (the permission matrix)."""
+
+    __table_args__ = (Index("ix_role_permission_role", "role"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    role: Role
+    permission: Permission
 
 
 class Document(SQLModel, table=True):
@@ -111,3 +130,4 @@ class Review(SQLModel, table=True):
     case_id: int = Field(foreign_key="case.id")
     reviewer_id: int = Field(foreign_key="user.id")
     comments: str
+    
