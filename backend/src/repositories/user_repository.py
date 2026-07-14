@@ -13,7 +13,16 @@ class UserRepository:
     def get_by_id(self, user_id: int) -> User | None:
         return self.session.get(User, user_id)
 
+    def get_all(self) -> list[User]:
+        return list(self.session.exec(select(User)).all())
+
     def add(self, user: User) -> User:
+        self.session.add(user)
+        self.session.commit()
+        self.session.refresh(user)
+        return user
+
+    def update(self, user: User) -> User:
         self.session.add(user)
         self.session.commit()
         self.session.refresh(user)

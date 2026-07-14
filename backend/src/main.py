@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routers.auth_router import router as auth_router
 from routers.case_router import router as case_router
+from routers.users_router import router as users_router
 
 app = FastAPI(title="LegalMind API")
 
@@ -17,6 +18,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(case_router)
+app.include_router(users_router)
 
 
 @app.get("/")

@@ -2,17 +2,11 @@ from datetime import UTC, datetime, timedelta
 
 from foundation.models import Role, User
 from foundation.models import Session as SessionModel
+from tests.conftest import create_user_and_login
 
 
-def test_valid_login(client):
-    client.post(
-        "/auth/register",
-        json={
-            "email": "alice@example.com",
-            "full_name": "Alice",
-            "password": "password123",
-        },
-    )
+def test_valid_login(client, session):
+    create_user_and_login(client, session, "alice@example.com", Role.ATTORNEY)
 
     response = client.post(
         "/auth/login",
@@ -21,20 +15,12 @@ def test_valid_login(client):
             "password": "password123",
         },
     )
-
     assert response.status_code == 200
     assert "session_id" in response.cookies
 
 
-def test_wrong_password(client):
-    client.post(
-        "/auth/register",
-        json={
-            "email": "bob@example.com",
-            "full_name": "Bob",
-            "password": "correctpassword1",
-        },
-    )
+def test_wrong_password(client, session):
+    create_user_and_login(client, session, "bob@example.com", Role.ATTORNEY)
 
     response = client.post(
         "/auth/login",
@@ -43,7 +29,6 @@ def test_wrong_password(client):
             "password": "wrongpassword1",
         },
     )
-
     assert response.status_code == 401
 
 

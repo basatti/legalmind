@@ -9,9 +9,10 @@ from foundation.database import get_session
 from foundation.models import User
 from foundation.permissions import Permission, has_any_permission
 from foundation.schemas import (
+    ChangePasswordRequest,
     LoginRequest,
+    LoginResponse,
     MessageResponse,
-    UserRegisterRequest,
     UserResponse,
 )
 from repositories.session_repository import SessionRepository
@@ -24,7 +25,7 @@ SESSION_COOKIE_NAME = "session_id"
 
 
 # ---------------------------------------------------------------------------
-# Dependency — builds AuthService with both repositories
+# Dependency -- builds AuthService with both repositories
 # ---------------------------------------------------------------------------
 
 
@@ -89,46 +90,32 @@ def require_permission(*permissions: Permission) -> Callable[..., User]:
 
 
 # ---------------------------------------------------------------------------
-# POST /auth/register  (LEG-21)
-# ---------------------------------------------------------------------------
-
-
-@router.post(
-    "/register",
-    response_model=UserResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-def register(
-    data: UserRegisterRequest,
-    service: AuthService = Depends(get_auth_service),
-) -> User:
-    return service.register(data)
-
-
-# ---------------------------------------------------------------------------
 # POST /auth/login  (LEG-22)
 # ---------------------------------------------------------------------------
 
 
-@router.post("/login", response_model=MessageResponse)
+@router.post("/login", response_model=LoginResponse)
 def login(
     data: LoginRequest,
     response: Response,
     service: AuthService = Depends(get_auth_service),
-) -> MessageResponse:
+) -> LoginResponse:
     """Verify credentials, create server-side session, set httpOnly cookie."""
-    session_id = service.login(data)
+    session_id, must_change_password = service.login(data)
 
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
-        httponly=True,  # not accessible via JS — prevents XSS theft
+        httponly=True,  # not accessible via JS -- prevents XSS theft
         samesite="lax",  # CSRF protection for browser requests
         secure=False,  # set True in production (HTTPS only)
         max_age=60 * 60 * 24,  # 24 hours, matches SESSION_TTL_HOURS
     )
 
-    return MessageResponse(message="Logged in successfully")
+    return LoginResponse(
+        message="Logged in successfully",
+        must_change_password=must_change_password,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -164,3 +151,23 @@ def logout(
 def me(user: User = Depends(current_user)) -> User:
     """Return the currently authenticated user."""
     return user
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/change-password  (LEG-21)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/change-password", response_model=MessageResponse)
+def change_password(
+    data: ChangePasswordRequest,
+    user: User = Depends(current_user),
+    service: AuthService = Depends(get_auth_service),
+) -> MessageResponse:
+    """Change the current user's password.
+
+    Works even if must_change_password is True -- this is how a user
+    clears that flag after being given a temporary password by an admin.
+    """
+    service.change_password(user, data)
+    return MessageResponse(message="Password changed successfully")

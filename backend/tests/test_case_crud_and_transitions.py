@@ -1,21 +1,16 @@
 import pytest
 
+from foundation.models import Role
+from tests.conftest import create_user_and_login
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def register_and_login(client, email="user@example.com"):
-    client.post(
-        "/auth/register",
-        json={
-            "email": email,
-            "full_name": "Test User",
-            "password": "password123",
-            "role": "admin",  # CRUD/FSM tests check case behavior, not authorization
-        },
-    )
-    client.post("/auth/login", json={"email": email, "password": "password123"})
+def register_and_login(client, session, email="user@example.com"):
+    # CRUD/FSM tests check case behavior, not authorization
+    create_user_and_login(client, session, email, Role.ADMIN)
     return client
 
 
@@ -32,8 +27,8 @@ def create_case(client, title="Test Case", description="A test case"):
 # ---------------------------------------------------------------------------
 
 
-def test_create_case(client):
-    register_and_login(client)
+def test_create_case(client, session):
+    register_and_login(client, session)
     response = create_case(client)
     assert response.status_code == 201
     body = response.json()
@@ -41,8 +36,8 @@ def test_create_case(client):
     assert body["status"] == "draft"
 
 
-def test_list_cases(client):
-    register_and_login(client)
+def test_list_cases(client, session):
+    register_and_login(client, session)
     create_case(client, title="Case A")
     create_case(client, title="Case B")
 
@@ -53,8 +48,8 @@ def test_list_cases(client):
     assert "Case B" in titles
 
 
-def test_get_case_by_id(client):
-    register_and_login(client)
+def test_get_case_by_id(client, session):
+    register_and_login(client, session)
     created = create_case(client).json()
 
     response = client.get(f"/cases/{created['id']}")
@@ -62,14 +57,14 @@ def test_get_case_by_id(client):
     assert response.json()["id"] == created["id"]
 
 
-def test_get_nonexistent_case_returns_404(client):
-    register_and_login(client)
+def test_get_nonexistent_case_returns_404(client, session):
+    register_and_login(client, session)
     response = client.get("/cases/99999")
     assert response.status_code == 404
 
 
-def test_update_case(client):
-    register_and_login(client)
+def test_update_case(client, session):
+    register_and_login(client, session)
     created = create_case(client).json()
 
     response = client.patch(
@@ -99,7 +94,7 @@ def test_update_case(client):
 def test_legal_transition_succeeds(client, session, from_status, target_status):
     from foundation.models import Case
 
-    register_and_login(client)
+    register_and_login(client, session)
     case = Case(title="Case", description=None, status=from_status)
     session.add(case)
     session.commit()
@@ -133,7 +128,7 @@ def test_legal_transition_succeeds(client, session, from_status, target_status):
 def test_illegal_transition_rejected(client, session, from_status, target_status):
     from foundation.models import Case
 
-    register_and_login(client)
+    register_and_login(client, session)
     case = Case(title="Case", description=None, status=from_status)
     session.add(case)
     session.commit()
@@ -147,8 +142,8 @@ def test_illegal_transition_rejected(client, session, from_status, target_status
     assert "Cannot transition" in response.json()["detail"]
 
 
-def test_transition_on_nonexistent_case_returns_404(client):
-    register_and_login(client)
+def test_transition_on_nonexistent_case_returns_404(client, session):
+    register_and_login(client, session)
     response = client.post(
         "/cases/99999/transition",
         json={"target_status": "in_progress"},

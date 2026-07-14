@@ -8,11 +8,11 @@ from fastapi import HTTPException, status
 from foundation.hashing import hash_password, verify_password
 from foundation.models import Session as SessionModel
 from foundation.models import User
-from foundation.schemas import LoginRequest, UserRegisterRequest
+from foundation.schemas import ChangePasswordRequest, LoginRequest, UserCreateRequest
 from repositories.session_repository import SessionRepository
 from repositories.user_repository import UserRepository
 
-# Session lifetime — 24 hours
+# Session lifetime -- 24 hours
 SESSION_TTL_HOURS = 24
 
 
@@ -26,10 +26,10 @@ class AuthService:
         self.session_repository = session_repository
 
     # ------------------------------------------------------------------
-    # Registration (LEG-21, unchanged)
+    # Admin-only user creation (LEG-21) -- replaces public registration
     # ------------------------------------------------------------------
 
-    def register(self, data: UserRegisterRequest) -> User:
+    def create_user(self, data: UserCreateRequest) -> User:
         existing_user = self.user_repository.get_by_email(data.email)
         if existing_user is not None:
             raise HTTPException(
@@ -40,20 +40,21 @@ class AuthService:
         new_user = User(
             email=data.email,
             full_name=data.full_name,
-            hashed_password=hash_password(data.password),
+            hashed_password=hash_password(data.temporary_password),
             role=data.role,
+            must_change_password=True,
         )
 
         return self.user_repository.add(new_user)
 
     # ------------------------------------------------------------------
-    # Login — verify credentials, create session, return session id
+    # Login -- verify credentials, create session, return session id
     # ------------------------------------------------------------------
 
-    def login(self, data: LoginRequest) -> str:
+    def login(self, data: LoginRequest) -> tuple[str, bool]:
         """Verify credentials and create a server-side session.
 
-        Returns the session id to be set as an httpOnly cookie.
+        Returns (session_id, must_change_password).
         Raises HTTP 401 for invalid credentials.
         """
         user = self.user_repository.get_by_email(data.email)
@@ -79,10 +80,10 @@ class AuthService:
         )
 
         self.session_repository.add(session)
-        return session.id
+        return session.id, user.must_change_password
 
     # ------------------------------------------------------------------
-    # Logout — invalidate session
+    # Logout -- invalidate session
     # ------------------------------------------------------------------
 
     def logout(self, session_id: str) -> None:
@@ -90,7 +91,7 @@ class AuthService:
         self.session_repository.delete(session_id)
 
     # ------------------------------------------------------------------
-    # Session validation — used by current_user dependency (LEG-23)
+    # Session validation -- used by current_user dependency (LEG-23)
     # ------------------------------------------------------------------
 
     def get_user_from_session(self, session_id: str) -> User:
@@ -122,3 +123,23 @@ class AuthService:
             )
 
         return user
+
+    # ------------------------------------------------------------------
+    # Change password (LEG-21) -- required on first login, or any time after
+    # ------------------------------------------------------------------
+
+    def change_password(self, user: User, data: ChangePasswordRequest) -> None:
+        """Verify the current password, then set the new one.
+
+        Clears must_change_password so the user is no longer forced
+        to change it again.
+        """
+        if not verify_password(data.current_password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is incorrect",
+            )
+
+        user.hashed_password = hash_password(data.new_password)
+        user.must_change_password = False
+        self.user_repository.update(user)

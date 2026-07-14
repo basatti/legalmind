@@ -47,6 +47,7 @@ class User(SQLModel, table=True):
     hashed_password: str
     role: Role
     is_active: bool = Field(default=True)
+    must_change_password: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -121,4 +122,3 @@ class Review(SQLModel, table=True):
     case_id: int = Field(foreign_key="case.id")
     reviewer_id: int = Field(foreign_key="user.id")
     comments: str
-    

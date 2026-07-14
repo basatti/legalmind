@@ -7,22 +7,31 @@ from pydantic import BaseModel, EmailStr, field_validator
 from foundation.models import CaseStatus, Role
 
 
-class UserRegisterRequest(BaseModel):
+def _validate_password_rules(value: str) -> str:
+    if len(value) < 8:
+        raise ValueError("Password must be at least 8 characters long")
+    if not any(char.isdigit() for char in value):
+        raise ValueError("Password must contain at least one digit")
+    if not any(char.isalpha() for char in value):
+        raise ValueError("Password must contain at least one letter")
+    return value
+
+
+# ---------------------------------------------------------------------------
+# LEG-21: Admin-only user creation (replaces public registration)
+# ---------------------------------------------------------------------------
+
+
+class UserCreateRequest(BaseModel):
     email: EmailStr
     full_name: str
-    password: str
-    role: Role = Role.ATTORNEY  # default to lowest-privilege role
+    temporary_password: str
+    role: Role
 
-    @field_validator("password")
+    @field_validator("temporary_password")
     @classmethod
-    def validate_password(cls, value: str) -> str:
-        if len(value) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(char.isdigit() for char in value):
-            raise ValueError("Password must contain at least one digit")
-        if not any(char.isalpha() for char in value):
-            raise ValueError("Password must contain at least one letter")
-        return value
+    def validate_temporary_password(cls, value: str) -> str:
+        return _validate_password_rules(value)
 
 
 class UserResponse(BaseModel):
@@ -31,6 +40,7 @@ class UserResponse(BaseModel):
     full_name: str
     role: Role
     is_active: bool
+    must_change_password: bool
 
 
 # ---------------------------------------------------------------------------
@@ -43,8 +53,28 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class LoginResponse(BaseModel):
+    message: str
+    must_change_password: bool
+
+
 class MessageResponse(BaseModel):
     message: str
+
+
+# ---------------------------------------------------------------------------
+# LEG-21: Change password (first login, or any time after)
+# ---------------------------------------------------------------------------
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        return _validate_password_rules(value)
 
 
 # ---------------------------------------------------------------------------
@@ -91,3 +121,18 @@ class CaseResponse(BaseModel):
 
 class CaseTransitionRequest(BaseModel):
     target_status: CaseStatus
+
+
+# ---------------------------------------------------------------------------
+# LEG-40: Case assignment
+# ---------------------------------------------------------------------------
+
+
+class AssignmentCreateRequest(BaseModel):
+    user_id: int
+
+
+class AssignmentResponse(BaseModel):
+    id: int
+    case_id: int
+    user_id: int
