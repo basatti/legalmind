@@ -45,7 +45,16 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True)
     full_name: str
     hashed_password: str
-    role: Role
+    role: Role = Field(
+        sa_column=Column(
+            SAEnum(
+                Role,
+                values_callable=lambda enum_cls: [member.value for member in enum_cls],
+                name="role",
+            ),
+            nullable=False,
+        )
+    )
     is_active: bool = Field(default=True)
     must_change_password: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.now)

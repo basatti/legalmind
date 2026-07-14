@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -8,6 +9,14 @@ from foundation.database import get_session
 from foundation.hashing import hash_password
 from foundation.models import User
 from main import app
+
+# Force tests onto their own throwaway database, regardless of what the
+# app's own .env points at (that one must stay pointed at the real dev
+# database). override=True means this always wins over anything already
+# loaded — including a plain DATABASE_URL from .env or the shell.
+# In CI, .env.test isn't present, so this is a no-op and CI's own
+# DATABASE_URL (set directly in the workflow) is used instead.
+load_dotenv(".env.test", override=True)
 
 
 @pytest.fixture(scope="session")
