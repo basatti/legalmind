@@ -2,9 +2,11 @@ import type {
   Case,
   HealthResponse,
   LoginRequest,
+  LoginResponse,
   MessageResponse,
   RootResponse,
   User,
+  UserCreateRequest,
 } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -87,8 +89,8 @@ export const apiClient = {
 
   auth: {
     /** POST /auth/login — verify credentials, server sets session cookie */
-    login(data: LoginRequest): Promise<MessageResponse> {
-      return apiFetch<MessageResponse>("/auth/login", {
+    login(data: LoginRequest): Promise<LoginResponse> {
+      return apiFetch<LoginResponse>("/auth/login", {
         method: "POST",
         body: JSON.stringify(data),
       });
@@ -104,6 +106,21 @@ export const apiClient = {
     /** GET /auth/me — returns the current user, or throws 401 if not logged in */
     me(): Promise<User> {
       return apiFetch<User>("/auth/me");
+    },
+  },
+
+  users: {
+    /** GET /users/ — list all users, admin-only */
+    list(): Promise<User[]> {
+      return apiFetch<User[]>("/users/");
+    },
+
+    /** POST /users/ — create a new user, admin-only */
+    create(data: UserCreateRequest): Promise<User> {
+      return apiFetch<User>("/users/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
     },
   },
 } as const;
