@@ -1,7 +1,9 @@
 import type {
   Assignment,
   Case,
-  CaseStatus,
+  CaseCreateRequest,
+  CaseTransitionRequest,
+  CaseUpdateRequest,
   HealthResponse,
   LoginRequest,
   LoginResponse,
@@ -15,8 +17,7 @@ import type {
 // Base config
 // ---------------------------------------------------------------------------
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // ---------------------------------------------------------------------------
 // Core fetch wrapper — typed, no any
@@ -64,35 +65,46 @@ export class ApiError extends Error {
 // ---------------------------------------------------------------------------
 
 export const apiClient = {
-  /** GET / — health/welcome check */
   root(): Promise<RootResponse> {
     return apiFetch<RootResponse>("/");
   },
 
-  /** GET /health */
   health(): Promise<HealthResponse> {
     return apiFetch<HealthResponse>("/health");
   },
 
   cases: {
-    /** GET /cases/ — list all cases */
+    /** GET /cases/ — list cases (scoped by assignment on the backend) */
     list(): Promise<Case[]> {
       return apiFetch<Case[]>("/cases/");
     },
 
-    /** POST /cases/ — create a new case */
-    create(data: Omit<Case, "id" | "created_at">): Promise<Case> {
+    /** GET /cases/:id — get a single case */
+    get(id: number): Promise<Case> {
+      return apiFetch<Case>(`/cases/${id}`);
+    },
+
+    /** POST /cases/ — create a new case (Partner/Admin only) */
+    create(data: CaseCreateRequest): Promise<Case> {
       return apiFetch<Case>("/cases/", {
         method: "POST",
         body: JSON.stringify(data),
       });
     },
 
-    /** POST /cases/{id}/transition — move a case to a new status */
-    transition(id: number, targetStatus: CaseStatus): Promise<Case> {
+    /** PATCH /cases/:id — update title/description */
+    update(id: number, data: CaseUpdateRequest): Promise<Case> {
+      return apiFetch<Case>(`/cases/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+    },
+
+    /** POST /cases/:id/transition — advance the state machine */
+    transition(id: number, data: CaseTransitionRequest): Promise<Case> {
       return apiFetch<Case>(`/cases/${id}/transition`, {
         method: "POST",
-        body: JSON.stringify({ target_status: targetStatus }),
+        body: JSON.stringify(data),
       });
     },
 
@@ -106,7 +118,6 @@ export const apiClient = {
   },
 
   auth: {
-    /** POST /auth/login — verify credentials, server sets session cookie */
     login(data: LoginRequest): Promise<LoginResponse> {
       return apiFetch<LoginResponse>("/auth/login", {
         method: "POST",
@@ -114,26 +125,22 @@ export const apiClient = {
       });
     },
 
-    /** POST /auth/logout — invalidate session, clears cookie */
     logout(): Promise<MessageResponse> {
       return apiFetch<MessageResponse>("/auth/logout", {
         method: "POST",
       });
     },
 
-    /** GET /auth/me — returns the current user, or throws 401 if not logged in */
     me(): Promise<User> {
       return apiFetch<User>("/auth/me");
     },
   },
 
   users: {
-    /** GET /users/ — list all users, admin-only */
     list(): Promise<User[]> {
       return apiFetch<User[]>("/users/");
     },
 
-    /** POST /users/ — create a new user, admin-only */
     create(data: UserCreateRequest): Promise<User> {
       return apiFetch<User>("/users/", {
         method: "POST",
