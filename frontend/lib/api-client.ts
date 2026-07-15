@@ -1,5 +1,7 @@
 import type {
+  Assignment,
   Case,
+  CaseStatus,
   HealthResponse,
   LoginRequest,
   LoginResponse,
@@ -83,6 +85,22 @@ export const apiClient = {
       return apiFetch<Case>("/cases/", {
         method: "POST",
         body: JSON.stringify(data),
+      });
+    },
+
+    /** POST /cases/{id}/transition — move a case to a new status */
+    transition(id: number, targetStatus: CaseStatus): Promise<Case> {
+      return apiFetch<Case>(`/cases/${id}/transition`, {
+        method: "POST",
+        body: JSON.stringify({ target_status: targetStatus }),
+      });
+    },
+
+    /** POST /cases/{id}/assign — assign a user to a case */
+    assign(id: number, userId: number): Promise<Assignment> {
+      return apiFetch<Assignment>(`/cases/${id}/assign`, {
+        method: "POST",
+        body: JSON.stringify({ user_id: userId }),
       });
     },
   },
