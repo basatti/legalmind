@@ -7,6 +7,7 @@ import { CanDoAny } from "@/components/CanDo";
 import { ErrorState, Loading } from "@/components/ui";
 import { NotAuthorized } from "@/components/ui/NotAuthorized";
 import { RequireAuth } from "@/components/RequireAuth";
+import type { Permission } from "@/lib/permissions";
 import {
   CASE_STATUS_LABELS,
   CASE_STATUS_TRANSITIONS,
@@ -15,20 +16,17 @@ import {
 } from "@/types/api";
 
 // ---------------------------------------------------------------------------
-// Which permission is needed to trigger each transition
-// Mirrors backend TRANSITION_PERMISSIONS
+// Which permissions are needed to trigger each transition
+// Mirrors backend TRANSITION_PERMISSIONS in case_router.py exactly
 // ---------------------------------------------------------------------------
 
-const TRANSITION_PERMISSION_MAP: Record<
-  CaseStatus,
-  "case:edit:assigned" | "case:edit:any" | "case:submit_for_review" | "case:review" | "case:close" | null
-> = {
-  draft: null,
-  in_progress: "case:edit:assigned",
-  submitted_for_review: "case:submit_for_review",
-  under_review: "case:review",
-  revisions_requested: "case:review",
-  closed: "case:close",
+const TRANSITION_PERMISSION_MAP: Record<CaseStatus, Permission[]> = {
+  draft: [],
+  in_progress: ["case:edit:any", "case:edit:assigned"],
+  submitted_for_review: ["case:submit_for_review"],
+  under_review: ["case:review"],
+  revisions_requested: ["case:review"],
+  closed: ["case:close"],
 };
 
 // ---------------------------------------------------------------------------
@@ -67,7 +65,7 @@ function TransitionButton({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const permission = TRANSITION_PERMISSION_MAP[targetStatus];
+  const permissions = TRANSITION_PERMISSION_MAP[targetStatus];
 
   async function handleTransition() {
     setIsLoading(true);
@@ -98,8 +96,8 @@ function TransitionButton({
 
   return (
     <div className="flex flex-col gap-1">
-      {permission ? (
-        <CanDoAny permissions={[permission, "case:edit:any"]}>
+      {permissions.length > 0 ? (
+        <CanDoAny permissions={permissions}>
           {button}
         </CanDoAny>
       ) : (

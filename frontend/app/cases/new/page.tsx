@@ -36,7 +36,6 @@ function CreateCaseForm() {
       const newCase = await apiClient.cases.create({
         title,
         description: description || null,
-        status: "draft",
       });
       setCreatedCase(newCase);
       setTitle("");
