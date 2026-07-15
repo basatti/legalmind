@@ -31,10 +31,7 @@ function UserManagement() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
+  
   async function loadUsers() {
     setIsLoadingUsers(true);
     try {
@@ -44,6 +41,12 @@ function UserManagement() {
       setIsLoadingUsers(false);
     }
   }
+useEffect(() => {
+  async function fetch() {
+    await loadUsers();
+  }
+  void fetch();
+}, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
