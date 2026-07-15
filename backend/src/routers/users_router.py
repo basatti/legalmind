@@ -43,9 +43,7 @@ def create_user(
 @router.get("/", response_model=list[UserResponse])
 def list_users(
     repository: UserRepository = Depends(get_user_repository),
-    _user: User = Depends(
-        require_permission(Permission.USER_MANAGE, Permission.CASE_ASSIGN)
-    ),
+    _user: User = Depends(require_permission(Permission.USER_MANAGE, Permission.CASE_ASSIGN)),
 ) -> list[User]:
     """List all users. Admin, or Partner (to pick who to assign to a case)."""
     return repository.get_all()
