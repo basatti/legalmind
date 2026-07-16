@@ -19,4 +19,3 @@ class DocumentRepository:
     def get_by_case_id(self, case_id: int) -> list[Document]:
         statement = select(Document).where(Document.case_id == case_id)
         return list(self.session.exec(statement).all())
-    

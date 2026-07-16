@@ -81,4 +81,3 @@ class DocumentService:
         case = self._get_case_or_404(case_id)
         self._assert_can_access(user, case)
         return self.repository.get_by_case_id(case_id)
-    

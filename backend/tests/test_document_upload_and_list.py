@@ -1,7 +1,6 @@
 from foundation.models import Assignment, Case, Role
 from tests.conftest import create_user_and_login
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -184,4 +183,3 @@ def test_upload_accepts_file_at_max_size(client, session):
     response = upload_file(client, case.id, filename="exact.pdf", content=max_size_content)
 
     assert response.status_code == 201
-    
