@@ -1,4 +1,4 @@
-"""Pydantic schemas for request/response validation."""
+﻿"""Pydantic schemas for request/response validation."""
 
 from datetime import datetime
 
@@ -136,3 +136,13 @@ class AssignmentResponse(BaseModel):
     id: int
     case_id: int
     user_id: int
+
+# ---------------------------------------
+# LEG-XX: Document upload & listing
+# ---------------------------------------
+class DocumentOut(BaseModel):
+    id: int
+    case_id: int
+    filename: str
+    uploaded_by: int
+    uploaded_at: datetime
