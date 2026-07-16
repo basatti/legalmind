@@ -148,6 +148,8 @@ def test_list_documents_requires_authentication(client):
     response = client.get("/cases/1/documents/")
     assert response.status_code == 401
     # ---------------------------------------------------------------------------
+
+
 # File validation
 # ---------------------------------------------------------------------------
 
