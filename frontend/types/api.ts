@@ -41,8 +41,10 @@ export interface Assignment {
 
 export interface Document {
   id: number | null;
-  title: string;
-  file_path: string;
+  case_id: number;
+  filename: string;
+  uploaded_by: number;
+  uploaded_at: string;
 }
 
 export interface Feedback {

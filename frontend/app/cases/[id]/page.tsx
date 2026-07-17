@@ -6,6 +6,7 @@ import { apiClient, ApiError } from "@/lib/api-client";
 import { CanDoAny } from "@/components/CanDo";
 import { ErrorState, Loading } from "@/components/ui";
 import { NotAuthorized } from "@/components/ui/NotAuthorized";
+import { DocumentsSection } from "@/components/DocumentsSection";
 import { RequireAuth } from "@/components/RequireAuth";
 import type { Permission } from "@/lib/permissions";
 import {
@@ -206,6 +207,8 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
           </button>
         </div>
       </CanDoAny>
+
+      <DocumentsSection caseId={caseData.id!} />
     </div>
   );
 }
