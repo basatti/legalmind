@@ -173,3 +173,12 @@ class FeedbackResponse(BaseModel):
     content: str
     parent_id: int | None
     created_at: datetime
+    resolved: bool
+
+
+class ReviewResponse(BaseModel):
+    id: int
+    case_id: int
+    reviewer_id: int
+    created_at: datetime
+    comments: str | None

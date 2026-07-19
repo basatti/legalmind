@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { CanDoAny } from "@/components/CanDo";
+import { FeedbackThread } from "@/components/FeedbackThread";
 import { ErrorState, Loading } from "@/components/ui";
 import { NotAuthorized } from "@/components/ui/NotAuthorized";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -15,7 +16,6 @@ import {
   type Case,
   type CaseStatus,
   type ReviewCreateRequest,
-  type ReviewResponse,
 } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
   const [reviewContent, setReviewContent] = useState("");
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-  const [reviewSuccess, setReviewSuccess] = useState<ReviewResponse | null>(null);
+  const [threadRefreshKey, setThreadRefreshKey] = useState(0);
 
   useEffect(() => {
     apiClient.cases
@@ -235,9 +235,9 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
                   throw new Error("Case ID is missing.");
                 }
                 const payload: ReviewCreateRequest = { content: reviewContent };
-                const response = await apiClient.cases.review(caseData.id, payload);
-                setReviewSuccess(response);
+                await apiClient.cases.review(caseData.id, payload);
                 setReviewContent("");
+                setThreadRefreshKey((key) => key + 1);
                 setCaseData((current) =>
                   current ? { ...current, status: "under_review" } : current
                 );
@@ -256,16 +256,13 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
           >
             {isSubmittingReview ? "Submitting…" : "Submit review"}
           </button>
-
-          {reviewSuccess && (
-            <div className="mt-4 rounded-md border border-green-100 bg-green-50 p-4 text-sm text-green-900">
-              <p className="font-medium">Review submitted.</p>
-              <p className="mt-1">The case is now under review.</p>
-              <p className="mt-2 text-neutral-800">"{reviewSuccess.content}"</p>
-            </div>
-          )}
         </div>
       )}
+
+      {/* Review thread — every round opened on this case, with replies + resolve */}
+      <div className="mb-4">
+        <FeedbackThread caseId={caseData.id!} refreshKey={threadRefreshKey} />
+      </div>
 
       {/* Edit — assigned users only */}
       <CanDoAny permissions={["case:edit:any", "case:edit:assigned"]}>

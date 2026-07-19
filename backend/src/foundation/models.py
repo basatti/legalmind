@@ -165,3 +165,4 @@ class Feedback(SQLModel, table=True):
     # Self-referencing FK — makes this a tree node
     parent_id: int | None = Field(default=None, foreign_key="feedback.id")
     created_at: datetime = Field(default_factory=datetime.now)
+    resolved: bool = Field(default=False)

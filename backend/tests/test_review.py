@@ -1,4 +1,5 @@
-"""Tests for LEG-52: submit -> review -> respond loop.
+"""Tests for LEG-52 (submit -> review -> respond loop) and
+LEG-54 (list reviews/feedback + mark resolved).
 
 Every test prints the real response before asserting on it --
 run with `pytest -s` to see them.
@@ -138,5 +139,95 @@ def test_respond_rejects_parent_from_another_case(client, session):
         json={"parent_id": root_on_a["id"], "content": "Wrong case."},
     )
     print(f"\nCross-case reply -> got {response.status_code} {response.json()}")
+
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# LEG-54: list_reviews / list_feedback (read side)
+# ---------------------------------------------------------------------------
+
+
+def test_assigned_attorney_can_list_reviews_and_feedback(client, session):
+    case = make_case(session, title="Case", status="submitted_for_review")
+    attorney_id = register_and_login(client, session, "amy@example.com", Role.ATTORNEY)
+    assign(session, attorney_id, case.id)
+
+    register_and_login(client, session, "pat@example.com", Role.PARTNER)
+    root = client.post(f"/cases/{case.id}/reviews", json={"content": "Fix this."}).json()
+
+    login(client, "amy@example.com")
+    reviews = client.get(f"/cases/{case.id}/reviews")
+    print(f"\nATTORNEY GET /reviews -> {reviews.status_code} {reviews.json()}")
+    assert reviews.status_code == 200
+    assert reviews.json()[0]["case_id"] == case.id
+
+    feedback = client.get(f"/cases/{case.id}/feedback")
+    print(f"ATTORNEY GET /feedback -> {feedback.status_code} {feedback.json()}")
+    assert feedback.status_code == 200
+    assert feedback.json()[0]["id"] == root["id"]
+    assert feedback.json()[0]["resolved"] is False
+
+
+def test_unassigned_attorney_cannot_list_feedback(client, session):
+    case = make_case(session, title="Case", status="submitted_for_review")
+    register_and_login(client, session, "pat@example.com", Role.PARTNER)
+    client.post(f"/cases/{case.id}/reviews", json={"content": "Fix this."})
+
+    register_and_login(client, session, "amy@example.com", Role.ATTORNEY)
+    response = client.get(f"/cases/{case.id}/feedback")
+    print(f"\nUNASSIGNED Attorney tried to GET /feedback -> got {response.status_code}")
+
+    assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# LEG-54: resolve_feedback
+# ---------------------------------------------------------------------------
+
+
+def test_assigned_attorney_can_resolve_feedback(client, session):
+    case = make_case(session, title="Case", status="submitted_for_review")
+    attorney_id = register_and_login(client, session, "amy@example.com", Role.ATTORNEY)
+    assign(session, attorney_id, case.id)
+
+    register_and_login(client, session, "pat@example.com", Role.PARTNER)
+    root = client.post(f"/cases/{case.id}/reviews", json={"content": "Fix this."}).json()
+
+    login(client, "amy@example.com")
+    resolve = client.post(f"/cases/{case.id}/feedback/{root['id']}/resolve")
+    print(f"\nRESOLVE -> {resolve.status_code} {resolve.json()}")
+    assert resolve.status_code == 200
+    assert resolve.json()["resolved"] is True
+
+    refetched = client.get(f"/cases/{case.id}/feedback").json()
+    print(f"REFETCHED AFTER RESOLVE -> {refetched}")
+    assert refetched[0]["resolved"] is True
+
+
+def test_unassigned_attorney_cannot_resolve_feedback(client, session):
+    case = make_case(session, title="Case", status="submitted_for_review")
+    register_and_login(client, session, "pat@example.com", Role.PARTNER)
+    root = client.post(f"/cases/{case.id}/reviews", json={"content": "Fix this."}).json()
+
+    register_and_login(client, session, "amy@example.com", Role.ATTORNEY)
+    response = client.post(f"/cases/{case.id}/feedback/{root['id']}/resolve")
+    print(f"\nUNASSIGNED Attorney tried to RESOLVE -> got {response.status_code}")
+
+    assert response.status_code == 403
+
+
+def test_resolve_rejects_feedback_from_another_case(client, session):
+    case_a = make_case(session, title="Case A", status="submitted_for_review")
+    case_b = make_case(session, title="Case B", status="submitted_for_review")
+
+    register_and_login(client, session, "pat@example.com", Role.PARTNER)
+    root_on_a = client.post(f"/cases/{case_a.id}/reviews", json={"content": "On case A."}).json()
+
+    attorney_id = register_and_login(client, session, "amy@example.com", Role.ATTORNEY)
+    assign(session, attorney_id, case_b.id)
+
+    response = client.post(f"/cases/{case_b.id}/feedback/{root_on_a['id']}/resolve")
+    print(f"\nCross-case resolve -> got {response.status_code} {response.json()}")
 
     assert response.status_code == 400

@@ -4,12 +4,14 @@ import type {
   CaseCreateRequest,
   CaseTransitionRequest,
   CaseUpdateRequest,
+  Feedback,
+  FeedbackReplyRequest,
   HealthResponse,
   LoginRequest,
   LoginResponse,
   MessageResponse,
+  Review,
   ReviewCreateRequest,
-  ReviewResponse,
   RootResponse,
   User,
   UserCreateRequest,
@@ -119,10 +121,39 @@ export const apiClient = {
     },
 
     /** POST /cases/{id}/reviews — partner opens a review round with first feedback */
-    review(id: number, data: ReviewCreateRequest): Promise<ReviewResponse> {
-      return apiFetch<ReviewResponse>(`/cases/${id}/reviews`, {
+    review(id: number, data: ReviewCreateRequest): Promise<Feedback> {
+      return apiFetch<Feedback>(`/cases/${id}/reviews`, {
         method: "POST",
         body: JSON.stringify(data),
+      });
+    },
+  },
+
+  reviews: {
+    /** GET /cases/{id}/reviews — list every review round opened on this case */
+    list(caseId: number): Promise<Review[]> {
+      return apiFetch<Review[]>(`/cases/${caseId}/reviews`);
+    },
+  },
+
+  feedback: {
+    /** GET /cases/{id}/feedback — list every feedback comment on this case */
+    list(caseId: number): Promise<Feedback[]> {
+      return apiFetch<Feedback[]>(`/cases/${caseId}/feedback`);
+    },
+
+    /** POST /cases/{id}/feedback — reply to a specific feedback comment */
+    reply(caseId: number, data: FeedbackReplyRequest): Promise<Feedback> {
+      return apiFetch<Feedback>(`/cases/${caseId}/feedback`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+
+    /** POST /cases/{id}/feedback/{feedbackId}/resolve — mark a comment resolved */
+    resolve(caseId: number, feedbackId: number): Promise<Feedback> {
+      return apiFetch<Feedback>(`/cases/${caseId}/feedback/${feedbackId}/resolve`, {
+        method: "POST",
       });
     },
   },

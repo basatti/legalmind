@@ -2,9 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from foundation.database import get_session
-from foundation.models import Feedback, User
+from foundation.models import Feedback, Review, User
 from foundation.permissions import Permission
-from foundation.schemas import FeedbackReplyRequest, FeedbackResponse, ReviewCreateRequest
+from foundation.schemas import (
+    FeedbackReplyRequest,
+    FeedbackResponse,
+    ReviewCreateRequest,
+    ReviewResponse,
+)
 from repositories.assignment_repository import AssignmentRepository
 from repositories.case_repository import CaseRepository
 from repositories.feedback_repository import FeedbackRepository
@@ -53,3 +58,40 @@ def respond_to_feedback(
 ) -> Feedback:
     """Attorney (or Partner/Admin) replies to a specific feedback comment."""
     return service.respond_to_feedback(case_id, data, user)
+
+
+@router.get("/reviews", response_model=list[ReviewResponse])
+def list_reviews(
+    case_id: int,
+    service: ReviewService = Depends(get_review_service),
+    user: User = Depends(
+        require_permission(Permission.CASE_READ_ANY, Permission.CASE_READ_ASSIGNED)
+    ),
+) -> list[Review]:
+    """List every review round opened on this case."""
+    return service.list_reviews(case_id, user)
+
+
+@router.get("/feedback", response_model=list[FeedbackResponse])
+def list_feedback(
+    case_id: int,
+    service: ReviewService = Depends(get_review_service),
+    user: User = Depends(
+        require_permission(Permission.CASE_READ_ANY, Permission.CASE_READ_ASSIGNED)
+    ),
+) -> list[Feedback]:
+    """List every feedback comment across all review rounds on this case."""
+    return service.list_feedback(case_id, user)
+
+
+@router.post("/feedback/{feedback_id}/resolve", response_model=FeedbackResponse)
+def resolve_feedback(
+    case_id: int,
+    feedback_id: int,
+    service: ReviewService = Depends(get_review_service),
+    user: User = Depends(
+        require_permission(Permission.CASE_EDIT_ANY, Permission.CASE_EDIT_ASSIGNED)
+    ),
+) -> Feedback:
+    """Attorney (or Partner/Admin) marks a feedback item resolved."""
+    return service.resolve_feedback(case_id, feedback_id, user)

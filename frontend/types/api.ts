@@ -45,17 +45,22 @@ export interface Document {
   file_path: string;
 }
 
-export interface Feedback {
-  id: number | null;
-  content: string;
-  rating: number;
-}
-
 export interface Review {
-  id: number | null;
+  id: number;
   case_id: number;
   reviewer_id: number;
-  comments: string;
+  created_at: string;
+  comments: string | null;
+}
+
+export interface Feedback {
+  id: number;
+  review_id: number;
+  author_id: number;
+  content: string;
+  parent_id: number | null;
+  created_at: string;
+  resolved: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,13 +97,9 @@ export interface ReviewCreateRequest {
   content: string;
 }
 
-export interface ReviewResponse {
-  id: number;
-  review_id: number;
-  author_id: number;
+export interface FeedbackReplyRequest {
+  parent_id: number;
   content: string;
-  parent_id: number | null;
-  created_at: string;
 }
 
 // ---------------------------------------------------------------------------
