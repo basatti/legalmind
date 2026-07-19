@@ -84,9 +84,7 @@ class ReviewService:
     # Attorney: reply to a specific feedback comment
     # ------------------------------------------------------------------
 
-    def respond_to_feedback(
-        self, case_id: int, data: FeedbackReplyRequest, user: User
-    ) -> Feedback:
+    def respond_to_feedback(self, case_id: int, data: FeedbackReplyRequest, user: User) -> Feedback:
         case = self._get_case_or_404(case_id)
         self._assert_can_respond(user, case)
 
