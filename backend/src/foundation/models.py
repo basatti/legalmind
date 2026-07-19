@@ -85,14 +85,7 @@ class Case(SQLModel, table=True):
 
 
 class Assignment(SQLModel, table=True):
-    """Edge in the user-case bipartite graph.
-
-    Indexes on both foreign keys avoid full table scans on the two most
-    common lookups:
-      - "which cases is this user assigned to?"  -> index on user_id  O(log n)
-      - "which users are assigned to this case?" -> index on case_id  O(log n)
-    Without indexes both queries are O(n) full scans.
-    """
+    """Edge in the user-case bipartite graph."""
 
     __table_args__ = (
         Index("ix_assignment_case_id", "case_id"),
@@ -120,14 +113,55 @@ class Document(SQLModel, table=True):
     file_path: str
 
 
-class Feedback(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    content: str
-    rating: int = Field(ge=1, le=5)
+# ---------------------------------------------------------------------------
+# LEG-51: Review round model
+# ---------------------------------------------------------------------------
 
 
 class Review(SQLModel, table=True):
+    """A formal review round opened by a Partner on a submitted case.
+
+    One case can have multiple review rounds (submit → revise → resubmit).
+    The reviewer_id must be a Partner or Admin.
+    """
+
+    __table_args__ = (Index("ix_review_case_id", "case_id"),)
+
     id: int | None = Field(default=None, primary_key=True)
     case_id: int = Field(foreign_key="case.id")
     reviewer_id: int = Field(foreign_key="user.id")
-    comments: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    # Overall verdict left by the reviewer when closing the round
+    comments: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# LEG-51: Threaded Feedback model
+# ---------------------------------------------------------------------------
+
+
+class Feedback(SQLModel, table=True):
+    """A single node in the review feedback tree.
+
+    Trees & recursion (CS concept):
+      - parent_id = None  → root comment (Partner opens the thread)
+      - parent_id = N     → reply to feedback N
+      - The full thread is a tree traversed via DFS to render in order.
+
+    Cycle guard: enforced at the service layer — a node cannot be its own
+    ancestor. Orphan guard: parent_id must reference an existing Feedback row
+    in the same review (FK constraint + service-layer check).
+    """
+
+    __table_args__ = (
+        Index("ix_feedback_review_id", "review_id"),
+        Index("ix_feedback_parent_id", "parent_id"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    review_id: int = Field(foreign_key="review.id")
+    author_id: int = Field(foreign_key="user.id")
+    content: str
+    # Self-referencing FK — makes this a tree node
+    parent_id: int | None = Field(default=None, foreign_key="feedback.id")
+    created_at: datetime = Field(default_factory=datetime.now)
