@@ -136,3 +136,40 @@ class AssignmentResponse(BaseModel):
     id: int
     case_id: int
     user_id: int
+
+
+# ---------------------------------------------------------------------------
+# LEG-52: Review + threaded feedback
+# ---------------------------------------------------------------------------
+
+
+class ReviewCreateRequest(BaseModel):
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Feedback content must not be empty")
+        return value
+
+
+class FeedbackReplyRequest(BaseModel):
+    parent_id: int
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Feedback content must not be empty")
+        return value
+
+
+class FeedbackResponse(BaseModel):
+    id: int
+    review_id: int
+    author_id: int
+    content: str
+    parent_id: int | None
+    created_at: datetime
