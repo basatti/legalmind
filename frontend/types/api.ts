@@ -88,6 +88,19 @@ export interface CaseTransitionRequest {
   target_status: CaseStatus;
 }
 
+export interface ReviewCreateRequest {
+  content: string;
+}
+
+export interface ReviewResponse {
+  id: number;
+  review_id: number;
+  author_id: number;
+  content: string;
+  parent_id: number | null;
+  created_at: string;
+}
+
 // ---------------------------------------------------------------------------
 // Response shapes
 // ---------------------------------------------------------------------------

@@ -7,12 +7,15 @@ import { CanDoAny } from "@/components/CanDo";
 import { ErrorState, Loading } from "@/components/ui";
 import { NotAuthorized } from "@/components/ui/NotAuthorized";
 import { RequireAuth } from "@/components/RequireAuth";
+import { usePermission } from "@/lib/usePermission";
 import type { Permission } from "@/lib/permissions";
 import {
   CASE_STATUS_LABELS,
   CASE_STATUS_TRANSITIONS,
   type Case,
   type CaseStatus,
+  type ReviewCreateRequest,
+  type ReviewResponse,
 } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -118,6 +121,11 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isNotAuthorized, setIsNotAuthorized] = useState(false);
+  const canReview = usePermission("case:review");
+  const [reviewContent, setReviewContent] = useState("");
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewSuccess, setReviewSuccess] = useState<ReviewResponse | null>(null);
 
   useEffect(() => {
     apiClient.cases
@@ -180,15 +188,82 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
             Move to
           </p>
           <div className="flex flex-wrap gap-2">
-            {allowedTransitions.map((target) => (
-              <TransitionButton
-                key={target}
-                caseId={caseData.id!}
-                targetStatus={target}
-                onSuccess={setCaseData}
-              />
-            ))}
+            {allowedTransitions
+        .filter((target) =>
+          caseData.status === "submitted_for_review" &&
+          target === "under_review" &&
+          canReview
+            ? false
+            : true
+        )
+        .map((target) => (
+          <TransitionButton
+            key={target}
+            caseId={caseData.id!}
+            targetStatus={target}
+            onSuccess={setCaseData}
+          />
+        ))}
           </div>
+        </div>
+      )}
+
+      {caseData.status === "submitted_for_review" && canReview && (
+        <div className="bg-white border border-neutral-200 rounded-lg px-5 py-4 mb-4">
+          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-3">
+            Review case
+          </p>
+          <p className="text-sm text-neutral-600 mb-3">
+            As a partner, leave the first review comment and move this case to Under Review.
+          </p>
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
+            Feedback
+            <textarea
+              value={reviewContent}
+              onChange={(event) => setReviewContent(event.target.value)}
+              className="mt-2 w-full h-28 rounded-md border border-neutral-200 p-3 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none"
+              placeholder="Enter review feedback for the attorney..."
+            />
+          </label>
+          {reviewError && <p className="text-xs text-red-500 mb-3">{reviewError}</p>}
+          <button
+            onClick={async () => {
+              setReviewError(null);
+              setIsSubmittingReview(true);
+              try {
+                if (!caseData.id) {
+                  throw new Error("Case ID is missing.");
+                }
+                const payload: ReviewCreateRequest = { content: reviewContent };
+                const response = await apiClient.cases.review(caseData.id, payload);
+                setReviewSuccess(response);
+                setReviewContent("");
+                setCaseData((current) =>
+                  current ? { ...current, status: "under_review" } : current
+                );
+              } catch (err) {
+                if (err instanceof ApiError) {
+                  setReviewError(err.status === 403 ? "Not permitted" : "Failed to submit review.");
+                } else {
+                  setReviewError("Failed to submit review.");
+                }
+              } finally {
+                setIsSubmittingReview(false);
+              }
+            }}
+            disabled={isSubmittingReview || reviewContent.trim().length === 0}
+            className="text-sm rounded-md bg-neutral-900 text-white px-4 py-2 hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+          >
+            {isSubmittingReview ? "Submitting…" : "Submit review"}
+          </button>
+
+          {reviewSuccess && (
+            <div className="mt-4 rounded-md border border-green-100 bg-green-50 p-4 text-sm text-green-900">
+              <p className="font-medium">Review submitted.</p>
+              <p className="mt-1">The case is now under review.</p>
+              <p className="mt-2 text-neutral-800">"{reviewSuccess.content}"</p>
+            </div>
+          )}
         </div>
       )}
 

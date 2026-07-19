@@ -8,6 +8,8 @@ import type {
   LoginRequest,
   LoginResponse,
   MessageResponse,
+  ReviewCreateRequest,
+  ReviewResponse,
   RootResponse,
   User,
   UserCreateRequest,
@@ -113,6 +115,14 @@ export const apiClient = {
       return apiFetch<Assignment>(`/cases/${id}/assign`, {
         method: "POST",
         body: JSON.stringify({ user_id: userId }),
+      });
+    },
+
+    /** POST /cases/{id}/reviews — partner opens a review round with first feedback */
+    review(id: number, data: ReviewCreateRequest): Promise<ReviewResponse> {
+      return apiFetch<ReviewResponse>(`/cases/${id}/reviews`, {
+        method: "POST",
+        body: JSON.stringify(data),
       });
     },
   },
