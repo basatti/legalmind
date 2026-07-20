@@ -61,6 +61,27 @@ def current_user(
 
 
 # ---------------------------------------------------------------------------
+# require_password_changed dependency (LEG-55)
+# ---------------------------------------------------------------------------
+
+
+def require_password_changed(user: User = Depends(current_user)) -> User:
+    """Block access if the user still has a temporary password.
+
+    Runs current_user first, so an unauthenticated request still gets 401,
+    not 403. change-password, logout, and me deliberately stay on plain
+    current_user (not this) so a user stuck with must_change_password=True
+    can still reach the one route that lets them fix it.
+    """
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password change required",
+        )
+    return user
+
+
+# ---------------------------------------------------------------------------
 # require_permission dependency factory (LEG-39)
 # ---------------------------------------------------------------------------
 
@@ -73,12 +94,14 @@ def require_permission(*permissions: Permission) -> Callable[..., User]:
            Depends(require_permission(Permission.CASE_READ_ANY, Permission.CASE_READ_ASSIGNED))
 
     Raises HTTP 403 if the role has none of the given permissions.
-    Runs current_user first, so an unauthenticated request still gets 401,
-    not 403.
+    Runs current_user, then require_password_changed, first -- so an
+    unauthenticated request gets 401, a temp-password request gets 403
+    "Password change required", and only then is the permission itself
+    checked.
     """
     required = set(permissions)
 
-    def checker(user: User = Depends(current_user)) -> User:
+    def checker(user: User = Depends(require_password_changed)) -> User:
         if not has_any_permission(user.role, required):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

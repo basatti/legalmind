@@ -14,7 +14,7 @@ from foundation.schemas import (
 from repositories.assignment_repository import AssignmentRepository
 from repositories.case_repository import CaseRepository
 from repositories.user_repository import UserRepository
-from routers.auth_router import current_user, require_permission
+from routers.auth_router import require_password_changed, require_permission
 from services.case_service import CaseService, IllegalTransitionError
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -39,7 +39,7 @@ def get_case_service(session: Session = Depends(get_session)) -> CaseService:
 
 def require_transition_permission(
     data: CaseTransitionRequest,
-    user: User = Depends(current_user),
+    user: User = Depends(require_password_changed),
 ) -> User:
     """Look up which permission this specific target_status requires,
     then check the logged-in user's role has it."""

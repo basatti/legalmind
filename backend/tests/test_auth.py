@@ -63,3 +63,57 @@ def test_invalid_or_expired_session(client, session):
 def test_protected_route_requires_login(client):
     response = client.get("/cases/")
     assert response.status_code == 401
+
+
+def test_forced_password_change_gate(client, session):
+    """LEG-55: temp login -> blocked -> change -> unblocked."""
+    create_user_and_login(
+        client,
+        session,
+        "temp@example.com",
+        Role.ATTORNEY,
+        password="temporary123",
+        must_change_password=True,
+    )
+
+    # Blocked from a normal route while must_change_password is True
+    blocked = client.get("/cases/")
+    print(f"GET /cases/ while must_change_password=True -> {blocked.status_code} {blocked.json()}")
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"] == "Password change required"
+
+    # But /auth/me stays reachable, and correctly reports the flag
+    me = client.get("/auth/me")
+    me_data = me.json()
+    print(f"GET /auth/me -> {me.status_code} flag={me_data['must_change_password']}")
+    assert me.status_code == 200
+    assert me_data["must_change_password"] is True
+
+    # Change the password
+    changed = client.post(
+        "/auth/change-password",
+        json={"current_password": "temporary123", "new_password": "newpassword123"},
+    )
+    print(f"POST /auth/change-password -> {changed.status_code}")
+    assert changed.status_code == 200
+
+    # Now unblocked
+    unblocked = client.get("/cases/")
+    print(f"GET /cases/ after password change -> {unblocked.status_code}")
+    assert unblocked.status_code == 200
+
+
+def test_temp_password_user_can_still_logout(client, session):
+    """A temp-password user must be able to log out, not just change password."""
+    create_user_and_login(
+        client,
+        session,
+        "temp2@example.com",
+        Role.ATTORNEY,
+        password="temporary123",
+        must_change_password=True,
+    )
+
+    response = client.post("/auth/logout")
+    print(f"POST /auth/logout while must_change_password=True -> {response.status_code}")
+    assert response.status_code == 200
