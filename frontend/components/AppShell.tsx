@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { usePermission } from "@/lib/usePermission";
 
@@ -108,11 +109,24 @@ function NavItem({ href, children }: { href: string; children: ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
-// AppShell — switches based on auth state
+// AppShell — switches based on auth state, and gates on forced password change
 // ---------------------------------------------------------------------------
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const mustChangePassword = user?.must_change_password ?? false;
+
+  // The one shared checkpoint every page passes through: if a logged-in
+  // user still has a temporary password, send them to /change-password
+  // no matter which page they were trying to reach.
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && mustChangePassword && pathname !== "/change-password") {
+      router.push("/change-password");
+    }
+  }, [isLoading, isAuthenticated, mustChangePassword, pathname, router]);
 
   if (isLoading) {
     return (

@@ -4,6 +4,7 @@ import type {
   CaseCreateRequest,
   CaseTransitionRequest,
   CaseUpdateRequest,
+  ChangePasswordRequest,
   Feedback,
   FeedbackReplyRequest,
   HealthResponse,
@@ -174,6 +175,14 @@ export const apiClient = {
 
     me(): Promise<User> {
       return apiFetch<User>("/auth/me");
+    },
+
+    /** POST /auth/change-password — clears must_change_password on success */
+    changePassword(data: ChangePasswordRequest): Promise<MessageResponse> {
+      return apiFetch<MessageResponse>("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
     },
   },
 

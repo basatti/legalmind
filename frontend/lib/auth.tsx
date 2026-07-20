@@ -21,6 +21,8 @@ interface AuthContext {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Re-fetch the current user — call after anything that changes their info server-side */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContext | null>(null);
@@ -42,10 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  async function login(email: string, password: string) {
-    await apiClient.auth.login({ email, password }); // throws ApiError on wrong credentials
+  async function refreshUser() {
     const currentUser = await apiClient.auth.me();
     setUser(currentUser);
+  }
+
+  async function login(email: string, password: string) {
+    await apiClient.auth.login({ email, password }); // throws ApiError on wrong credentials
+    await refreshUser();
   }
 
   async function logout() {
@@ -55,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: user !== null, isLoading, login, logout }}
+      value={{ user, isAuthenticated: user !== null, isLoading, login, logout, refreshUser }}
     >
       {children}
     </AuthContext.Provider>
