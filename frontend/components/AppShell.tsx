@@ -16,7 +16,12 @@ function GuestShell({ children }: { children: ReactNode }) {
         <span className="text-sm font-semibold tracking-tight text-neutral-900">
           LegalMind
         </span>
-        <span className="text-xs text-neutral-400">Sign in to continue</span>
+        <a
+          href="/login"
+          className="bg-neutral-900 text-white text-xs rounded-md px-3 py-1.5 hover:bg-neutral-800 transition-colors"
+        >
+          Sign in
+        </a>
       </header>
       <main className="flex-1 flex items-center justify-center px-6">
         {children}
