@@ -182,3 +182,14 @@ class ReviewResponse(BaseModel):
     reviewer_id: int
     created_at: datetime
     comments: str | None
+
+
+# ---------------------------------------
+# LEG-XX: Document upload & listing
+# ---------------------------------------
+class DocumentOut(BaseModel):
+    id: int
+    case_id: int
+    filename: str
+    uploaded_by: int
+    uploaded_at: datetime

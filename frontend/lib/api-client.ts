@@ -5,6 +5,7 @@ import type {
   CaseTransitionRequest,
   CaseUpdateRequest,
   ChangePasswordRequest,
+  Document,
   Feedback,
   FeedbackReplyRequest,
   HealthResponse,
@@ -41,6 +42,23 @@ async function apiFetch<T>(
       ...options.headers,
     },
     ...options,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new ApiError(res.status, text);
+  }
+
+  return res.json() as Promise<T>;
+}
+
+async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const url = `${BASE_URL}${path}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
   });
 
   if (!res.ok) {
@@ -156,6 +174,20 @@ export const apiClient = {
       return apiFetch<Feedback>(`/cases/${caseId}/feedback/${feedbackId}/resolve`, {
         method: "POST",
       });
+    },
+  },
+
+  documents: {
+    /** GET /cases/:caseId/documents/ — list documents for a case */
+    list(caseId: number): Promise<Document[]> {
+      return apiFetch<Document[]>(`/cases/${caseId}/documents/`);
+    },
+
+    /** POST /cases/:caseId/documents/ — upload a document */
+    upload(caseId: number, file: File): Promise<Document> {
+      const formData = new FormData();
+      formData.append("file", file);
+      return apiUpload<Document>(`/cases/${caseId}/documents/`, formData);
     },
   },
 
