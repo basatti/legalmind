@@ -118,6 +118,7 @@ def test_temp_password_user_can_still_logout(client, session):
     print(f"POST /auth/logout while must_change_password=True -> {response.status_code}")
     assert response.status_code == 200
 
+
 def test_login_rate_limit(client, session):
     create_user_and_login(client, session, "ratelimit@example.com", Role.ATTORNEY)
     # create_user_and_login already used 1 login attempt, so 4 more fit under the limit

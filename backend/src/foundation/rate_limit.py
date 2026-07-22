@@ -20,9 +20,7 @@ def check_login_rate_limit(request: Request) -> None:
     now = datetime.now(UTC)
 
     recent_attempts = [
-        timestamp
-        for timestamp in _login_attempts[ip]
-        if now - timestamp < RATE_LIMIT_WINDOW
+        timestamp for timestamp in _login_attempts[ip] if now - timestamp < RATE_LIMIT_WINDOW
     ]
 
     if len(recent_attempts) >= MAX_ATTEMPTS_PER_WINDOW:
