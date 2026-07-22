@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routers.auth_router import router as auth_router
 from routers.case_router import router as case_router
+from routers.document_router import router as document_router
 from routers.review_router import router as review_router
 from routers.users_router import router as users_router
 
@@ -19,6 +20,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(case_router)
+app.include_router(document_router)
 app.include_router(review_router)
 app.include_router(users_router)
 

@@ -108,9 +108,13 @@ class RolePermission(SQLModel, table=True):
 
 
 class Document(SQLModel, table=True):
+    __table_args__ = (Index("ix_document_case_id", "case_id"),)
     id: int | None = Field(default=None, primary_key=True)
-    title: str
+    case_id: int = Field(foreign_key="case.id")
+    filename: str
     file_path: str
+    uploaded_by: int = Field(foreign_key="user.id")
+    uploaded_at: datetime = Field(default_factory=datetime.now)
 
 
 # ---------------------------------------------------------------------------
