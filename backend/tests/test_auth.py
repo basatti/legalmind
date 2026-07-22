@@ -117,3 +117,22 @@ def test_temp_password_user_can_still_logout(client, session):
     response = client.post("/auth/logout")
     print(f"POST /auth/logout while must_change_password=True -> {response.status_code}")
     assert response.status_code == 200
+
+def test_login_rate_limit(client, session):
+    create_user_and_login(client, session, "ratelimit@example.com", Role.ATTORNEY)
+    # create_user_and_login already used 1 login attempt, so 4 more fit under the limit
+    for i in range(4):
+        response = client.post(
+            "/auth/login",
+            json={"email": "ratelimit@example.com", "password": "password123"},
+        )
+        print(f"Attempt {i + 2} -> {response.status_code}")
+        assert response.status_code == 200
+
+    # The 6th attempt overall should be blocked
+    blocked = client.post(
+        "/auth/login",
+        json={"email": "ratelimit@example.com", "password": "password123"},
+    )
+    print(f"Attempt 6 (should be blocked) -> {blocked.status_code} {blocked.json()}")
+    assert blocked.status_code == 429

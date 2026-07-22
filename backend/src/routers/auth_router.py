@@ -8,6 +8,7 @@ from sqlmodel import Session
 from foundation.database import get_session
 from foundation.models import User
 from foundation.permissions import Permission, has_any_permission
+from foundation.rate_limit import check_login_rate_limit
 from foundation.schemas import (
     ChangePasswordRequest,
     LoginRequest,
@@ -117,7 +118,11 @@ def require_permission(*permissions: Permission) -> Callable[..., User]:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    dependencies=[Depends(check_login_rate_limit)],
+)
 def login(
     data: LoginRequest,
     response: Response,

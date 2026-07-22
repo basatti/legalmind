@@ -48,6 +48,14 @@ def client(session):
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limits():
+    from foundation.rate_limit import _login_attempts
+
+    _login_attempts.clear()
+    yield
+
+
 def create_user_and_login(
     client,
     session,
