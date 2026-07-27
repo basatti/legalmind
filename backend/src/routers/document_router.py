@@ -8,6 +8,7 @@ from foundation.schemas import DocumentOut
 from repositories.assignment_repository import AssignmentRepository
 from repositories.case_repository import CaseRepository
 from repositories.document_repository import DocumentRepository
+from repositories.ingestion_job_repository import IngestionJobRepository
 from routers.auth_router import require_permission
 from services.document_service import DocumentService
 
@@ -19,6 +20,7 @@ def get_document_service(session: Session = Depends(get_session)) -> DocumentSer
         repository=DocumentRepository(session),
         case_repository=CaseRepository(session),
         assignment_repository=AssignmentRepository(session),
+        job_repository=IngestionJobRepository(session),
     )
 
 

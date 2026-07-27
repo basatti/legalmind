@@ -210,5 +210,44 @@ class DocumentChunk(SQLModel, table=True):
     sequence: int
     page_number: int
     text: str
-    embedding: list[float] = Field(sa_column=Column(Vector(EMBEDDING_DIMENSIONS)))
+    embedding: list[float] = Field(sa_column=Column(Vector(EMBEDDING_DIMENSIONS), nullable=False))
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+class IngestionStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class IngestionJob(SQLModel, table=True):
+    """One unit of work for the background worker: ingest this document.
+
+    The queue is a table. Upload writes a PENDING row and returns immediately;
+    the worker picks pending rows up and does the slow part. Because it lives in
+    the database, jobs survive a restart — an in-memory queue would lose them.
+    """
+
+    __table_args__ = (
+        Index("ix_ingestionjob_status", "status"),
+        Index("ix_ingestionjob_document_id", "document_id"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    document_id: int = Field(foreign_key="document.id")
+    status: IngestionStatus = Field(
+        default=IngestionStatus.PENDING,
+        sa_column=Column(
+            SAEnum(
+                IngestionStatus,
+                values_callable=lambda enum_cls: [member.value for member in enum_cls],
+                name="ingestionstatus",
+            ),
+            nullable=False,
+        ),
+    )
+    attempts: int = Field(default=0)
+    last_error: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)

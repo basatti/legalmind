@@ -9,6 +9,7 @@ from foundation.storage import storage
 from repositories.assignment_repository import AssignmentRepository
 from repositories.case_repository import CaseRepository
 from repositories.document_repository import DocumentRepository
+from repositories.ingestion_job_repository import IngestionJobRepository
 
 
 class DocumentService:
@@ -20,10 +21,12 @@ class DocumentService:
         repository: DocumentRepository,
         case_repository: CaseRepository,
         assignment_repository: AssignmentRepository,
+        job_repository: IngestionJobRepository,
     ) -> None:
         self.repository = repository
         self.case_repository = case_repository
         self.assignment_repository = assignment_repository
+        self.job_repository = job_repository
 
     def _get_case_or_404(self, case_id: int) -> Case:
         case = self.case_repository.get_by_id(case_id)
@@ -75,7 +78,14 @@ class DocumentService:
             uploaded_by=user.id,
             uploaded_at=datetime.now(),
         )
-        return self.repository.add(document)
+        document = self.repository.add(document)
+
+        # Queue the slow part. This writes one row and returns — the response
+        # does not wait for parsing, embedding or storage.
+        assert document.id is not None
+        self.job_repository.enqueue(document.id)
+
+        return document
 
     def list_documents(self, case_id: int, user: User) -> list[Document]:
         case = self._get_case_or_404(case_id)
