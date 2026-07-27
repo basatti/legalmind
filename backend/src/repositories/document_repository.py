@@ -13,6 +13,14 @@ class DocumentRepository:
         self.session.refresh(document)
         return document
 
+    def save(self, document: Document) -> Document:
+        """Persist changes to an existing document.
+
+        Identical mechanism to add() — SQLAlchemy works out insert vs update on
+        its own — but the name says what the caller means.
+        """
+        return self.add(document)
+
     def get_by_id(self, document_id: int) -> Document | None:
         return self.session.get(Document, document_id)
 

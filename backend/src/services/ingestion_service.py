@@ -7,6 +7,7 @@ decides when to call it.
 
 from chunkers import Chunker, FixedSizeChunker
 from embeddings import EmbeddingProvider
+from foundation.hashing import hash_content
 from foundation.models import EMBEDDING_DIMENSIONS, DocumentChunk
 from foundation.storage import StorageBackend, storage
 from parsers import get_parser_for, is_supported
@@ -39,11 +40,11 @@ class IngestionService:
         self.chunker = chunker or FixedSizeChunker()
         self.storage = storage_backend or storage
 
-    def ingest_document(self, document_id: int) -> int:
-        """Parse, chunk, embed and store one document. Returns how many chunks.
+    def ingest_document(self, document_id: int, force: bool = False) -> int:
+        """Parse, chunk, embed and store one document.
 
-        Re-running this on the same document replaces its chunks rather than
-        adding a second copy, so retrying after a crash is safe.
+        Returns how many chunks were stored, or 0 if the document was skipped
+        because its content has not changed since the last successful run.
         """
         document = self.document_repository.get_by_id(document_id)
         if document is None:
@@ -53,6 +54,13 @@ class IngestionService:
             raise IngestionError(f"No parser can handle '{document.filename}'")
 
         content = self.storage.read(document.file_path)
+        content_hash = hash_content(content)
+
+        if not force and document.ingested_content_hash == content_hash:
+            # Identical bytes to the last successful run, so the chunks already
+            # in the database are still correct. Nothing to redo.
+            return 0
+
         pages = get_parser_for(document.filename).parse(content)
         chunks = self.chunker.chunk(pages)
 
@@ -73,4 +81,9 @@ class IngestionService:
             for chunk, vector in zip(chunks, vectors, strict=True)
         ]
         self.chunk_repository.replace_for_document(document_id, rows)
+
+        # Recorded last, on purpose — see below.
+        document.ingested_content_hash = content_hash
+        self.document_repository.save(document)
+
         return len(rows)

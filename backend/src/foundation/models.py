@@ -116,6 +116,7 @@ class Document(SQLModel, table=True):
     file_path: str
     uploaded_by: int = Field(foreign_key="user.id")
     uploaded_at: datetime = Field(default_factory=datetime.now)
+    ingested_content_hash: str | None = None
 
 
 # ---------------------------------------------------------------------------
