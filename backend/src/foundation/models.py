@@ -1,6 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Index, SQLModel
@@ -170,3 +171,44 @@ class Feedback(SQLModel, table=True):
     parent_id: int | None = Field(default=None, foreign_key="feedback.id")
     created_at: datetime = Field(default_factory=datetime.now)
     resolved: bool = Field(default=False)
+
+
+# ---------------------------------------------------------------------------
+# LEG-13: RAG ingestion — stored chunks and their embeddings
+# ---------------------------------------------------------------------------
+
+EMBEDDING_DIMENSIONS = 1024
+"""Width of every stored vector.
+
+Fixed in the database column, so changing it means a new migration AND
+re-embedding every document — vectors of different widths cannot be compared.
+Chosen to match BGE-M3 / multilingual-e5-large; revisit once a model is picked.
+"""
+
+
+class DocumentChunk(SQLModel, table=True):
+    """One embedded piece of a document, ready for similarity search.
+
+    case_id is stored here rather than looked up through the document because
+    LEG-14 filters on it to enforce that nobody can retrieve text from a case
+    they are not assigned to. A chunk with no case_id would be invisible to
+    that filter.
+
+    (document_id, sequence) together identify a chunk's position, which is what
+    lets retrieval fetch the chunks either side of a match.
+    """
+
+    __table_args__ = (
+        Index("ix_documentchunk_document_id", "document_id"),
+        Index("ix_documentchunk_case_id", "case_id"),
+        Index("ix_documentchunk_document_sequence", "document_id", "sequence", unique=True),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    document_id: int = Field(foreign_key="document.id")
+    case_id: int = Field(foreign_key="case.id")
+    sequence: int
+    page_number: int
+    text: str
+    embedding: list[float] = Field(sa_column=Column(Vector(EMBEDDING_DIMENSIONS)))
+    created_at: datetime = Field(default_factory=datetime.now)

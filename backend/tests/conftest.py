@@ -3,6 +3,7 @@ import os
 import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
 
 from foundation.database import get_session
@@ -22,6 +23,10 @@ load_dotenv(".env.test", override=True)
 @pytest.fixture(scope="session")
 def engine():
     test_engine = create_engine(os.environ["DATABASE_URL"])
+    # documentchunk has a pgvector column, so the extension has to exist before
+    # create_all runs. IF NOT EXISTS makes this safe to repeat.
+    with test_engine.begin() as connection:
+        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     SQLModel.metadata.create_all(test_engine)
     yield test_engine
     SQLModel.metadata.drop_all(test_engine)
