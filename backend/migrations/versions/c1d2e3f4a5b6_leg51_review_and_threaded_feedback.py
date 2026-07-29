@@ -13,7 +13,7 @@ import sqlmodel
 from alembic import op
 
 revision: str = "c1d2e3f4a5b6"
-down_revision: str | Sequence[str] | None = "dd761b9ccc7b"
+down_revision: str | Sequence[str] | None = "d4e5f6a7b8c9"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
