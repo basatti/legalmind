@@ -10,3 +10,6 @@ backend/.venv/
 .env
 backend/storage/
 backend/data/
+# Uploaded/test files land wherever pytest was launched from, because
+# LocalDiskStorage's base_dir is a relative path. Ignore both locations.
+storage/

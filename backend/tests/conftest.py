@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
@@ -17,7 +18,26 @@ from main import app
 # loaded — including a plain DATABASE_URL from .env or the shell.
 # In CI, .env.test isn't present, so this is a no-op and CI's own
 # DATABASE_URL (set directly in the workflow) is used instead.
-load_dotenv(".env.test", override=True)
+#
+# The path is absolute on purpose. A relative ".env.test" silently finds
+# nothing when pytest is launched from the repo root instead of backend/, and
+# DATABASE_URL then falls through to whatever else is set — which was the DEV
+# database. The engine fixture below calls drop_all(), so that run destroyed
+# the dev schema and still reported 176 tests passing.
+load_dotenv(Path(__file__).parent.parent / ".env.test", override=True)
+
+# Second line of defence: the path fix above stops one cause, but this still
+# trusts whatever DATABASE_URL ends up saying. Since the engine fixture calls
+# drop_all(), pointing it at a real database destroys that database and reports
+# success — a failure with no signal at all. CI uses legalmind_test, so this
+# holds there too.
+_database_url = os.environ.get("DATABASE_URL", "")
+if not _database_url.endswith("_test"):
+    raise RuntimeError(
+        f"Refusing to run tests against {_database_url!r} — the engine fixture "
+        "calls drop_all() and would destroy it. DATABASE_URL must name a "
+        "database ending in _test."
+    )
 
 
 @pytest.fixture(scope="session")
@@ -62,6 +82,25 @@ def reset_rate_limits():
 
     _login_attempts.clear()
     yield
+
+
+@pytest.fixture
+def minimal_pdf_bytes() -> bytes:
+    """The smallest PDF pypdf can parse without erroring — one blank page."""
+    return (
+        b"%PDF-1.4\n"
+        b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+        b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+        b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]"
+        b"/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n"
+        b"4 0 obj<</Length 44>>stream\n"
+        b"BT /F1 12 Tf 20 100 Td (Hello world) Tj ET\n"
+        b"endstream endobj\n"
+        b"5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
+        b"xref\n0 6\n0000000000 65535 f \n"
+        b"trailer<</Size 6/Root 1 0 R>>\n"
+        b"startxref\n0\n%%EOF"
+    )
 
 
 def create_user_and_login(
