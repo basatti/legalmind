@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Browser__get_page_text",
+      "mcp__b3ad2e6d-a943-4d91-8c1e-e73828d6f609__getJiraIssue",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "mcp__Claude_Browser__read_page",
+      "mcp__Claude_Browser__find",
+      "mcp__claude-in-chrome__get_page_text",
+      "Bash",
+      "Write",
+      "Edit"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(gh release *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)"
+    ]
+  }
+}
