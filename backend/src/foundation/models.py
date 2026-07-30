@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from pgvector.sqlalchemy import Vector
 
 from sqlalchemy import Column
 from sqlalchemy import Enum as SAEnum
@@ -116,7 +117,42 @@ class Document(SQLModel, table=True):
     uploaded_by: int = Field(foreign_key="user.id")
     uploaded_at: datetime = Field(default_factory=datetime.now)
 
+# ---------------------------------------------------------------------------
+# LEG-58: Document chunk model
+# ---------------------------------------------------------------------------
 
+class DocumentChunk(SQLModel, table=True):
+    """A searchable text chunk extracted from an uploaded document."""
+
+    __tablename__ = "document_chunk"
+
+    __table_args__ = (
+        Index("ix_document_chunk_case_id", "case_id"),
+        Index("ix_document_chunk_document_id", "document_id"),
+        Index(
+            "uq_document_chunk_document_sequence",
+            "document_id",
+            "sequence",
+            unique=True,
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+
+    case_id: int = Field(foreign_key="case.id")
+    document_id: int = Field(foreign_key="document.id")
+
+    page_number: int
+    sequence: int
+
+    text: str
+
+    embedding: list[float] = Field(
+        sa_column=Column(Vector(1024), nullable=False)
+    )
+
+    created_at: datetime = Field(default_factory=datetime.now)
+    
 # ---------------------------------------------------------------------------
 # LEG-51: Review round model
 # ---------------------------------------------------------------------------
