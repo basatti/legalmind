@@ -9,4 +9,3 @@ backend/.venv/
 .ruff_cache/
 .env
 backend/storage/
-backend/data/
