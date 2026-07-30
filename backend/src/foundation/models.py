@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
-from pgvector.sqlalchemy import Vector
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Index, SQLModel
@@ -132,9 +132,11 @@ class Document(SQLModel, table=True):
     uploaded_by: int = Field(foreign_key="user.id")
     uploaded_at: datetime = Field(default_factory=datetime.now)
 
+
 # ---------------------------------------------------------------------------
 # LEG-58: Document chunk model
 # ---------------------------------------------------------------------------
+
 
 class DocumentChunk(SQLModel, table=True):
     """A searchable text chunk extracted from an uploaded document."""
@@ -162,12 +164,11 @@ class DocumentChunk(SQLModel, table=True):
 
     text: str
 
-    embedding: list[float] = Field(
-        sa_column=Column(Vector(1024), nullable=False)
-    )
+    embedding: list[float] = Field(sa_column=Column(Vector(1024), nullable=False))
 
     created_at: datetime = Field(default_factory=datetime.now)
-    
+
+
 # ---------------------------------------------------------------------------
 # LEG-51: Review round model
 # ---------------------------------------------------------------------------
