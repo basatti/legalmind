@@ -11,6 +11,7 @@ from parsers import (
     get_parser_for,
     is_supported,
 )
+from parsers.pdf_parser import _visual_to_logical
 
 
 def _escape(text: str) -> str:
@@ -114,6 +115,44 @@ def test_parse_rejects_a_scanned_pdf_with_no_text_layer() -> None:
     pdf = build_pdf(["", "", ""])
     with pytest.raises(ParserError, match="OCR"):
         PdfParser().parse(pdf)
+
+
+# ---------------------------------------------------------------------------
+# Rebuilding right-to-left text from visually-ordered glyphs
+# ---------------------------------------------------------------------------
+
+
+def test_ligature_glyphs_are_not_split_when_reversing() -> None:
+    """A ligature glyph decodes to its letters already in reading order, so
+    reversing must move it as one unit. Reversing character-by-character is
+    what turns المحكمة into املحكمة."""
+    visual = ["ة", "م", "ك", "ح", "لم", "ا"]
+    assert _visual_to_logical(visual) == "المحكمة"
+
+
+def test_plain_letters_are_reversed_into_reading_order() -> None:
+    assert _visual_to_logical(["د", "م", "لح", "ا"]) == "الحمد"
+
+
+def test_digits_keep_their_own_left_to_right_order() -> None:
+    """٣٣٦٨٣٦١٧ must not come back as ٧١٦٣٨٦٣٣ — a reversed case number is
+    worse than no case number."""
+    visual = ["٣", "٣", "٦", "٨", "٣", "٦", "١", "٧", " ", "م", "ق", "ر"]
+    assert _visual_to_logical(visual) == "رقم ٣٣٦٨٣٦١٧"
+
+
+def test_a_date_drawn_as_separate_groups_stays_one_number() -> None:
+    visual = ["١", "٤", "٣", "٣", " ", "/", " ", "١", "١", " ", "/", " ", "٣", "٠"]
+    assert _visual_to_logical(visual) == "١٤٣٣ / ١١ / ٣٠"
+
+
+def test_a_colon_stays_with_the_arabic_label_not_the_number() -> None:
+    visual = ["١", "٢", ":", " ", "م", "ق", "ر"]
+    assert _visual_to_logical(visual) == "رقم :١٢"
+
+
+def test_latin_only_text_is_left_alone() -> None:
+    assert _visual_to_logical(list("Lease clause")) == "Lease clause"
 
 
 # ---------------------------------------------------------------------------
