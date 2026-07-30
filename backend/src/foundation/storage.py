@@ -15,6 +15,14 @@ class StorageBackend(ABC):
     def delete(self, file_path: str) -> None:
         """Deletes a stored file given its stored path."""
 
+    @abstractmethod
+    def read(self, file_path: str) -> bytes:
+        """Reads back a stored file given its stored path.
+
+        Needed by background ingestion, which runs long after the upload
+        request has finished and so has no access to the original bytes.
+        """
+
 
 class LocalDiskStorage(StorageBackend):
     """Stores files on the local server disk, organized by case_id."""
@@ -38,6 +46,12 @@ class LocalDiskStorage(StorageBackend):
         full_path = self.base_dir / file_path
         if full_path.exists():
             os.remove(full_path)
+
+    def read(self, file_path: str) -> bytes:
+        full_path = self.base_dir / file_path
+        if not full_path.exists():
+            raise FileNotFoundError(f"No stored file at {file_path}")
+        return full_path.read_bytes()
 
 
 # Single shared instance the rest of the app will import and use

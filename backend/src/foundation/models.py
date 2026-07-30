@@ -35,6 +35,21 @@ class CaseStatus(StrEnum):
     CLOSED = "closed"
 
 
+class IngestionStatus(StrEnum):
+    """Lifecycle of one ingestion job.
+
+    PENDING → RUNNING → DONE, or back to PENDING for a retry, or FAILED once
+    the attempt limit is spent. Only PENDING jobs are ever claimed, so a job
+    whose worker died mid-RUNNING stays visible instead of being silently
+    retried forever.
+    """
+
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
 # ---------------------------------------------------------------------------
 # Entities
 # ---------------------------------------------------------------------------
@@ -170,3 +185,42 @@ class Feedback(SQLModel, table=True):
     parent_id: int | None = Field(default=None, foreign_key="feedback.id")
     created_at: datetime = Field(default_factory=datetime.now)
     resolved: bool = Field(default=False)
+
+
+# ---------------------------------------------------------------------------
+# LEG-59: Background ingestion queue
+# ---------------------------------------------------------------------------
+
+
+class IngestionJob(SQLModel, table=True):
+    """One unit of background work: ingest this document.
+
+    FIFO queue (CS concept): upload appends a row, the worker takes the oldest
+    PENDING one. The index on (status, id) is what keeps that claim cheap —
+    without it the worker scans every finished job to find the next pending
+    one, and the queue gets slower the longer the system runs.
+
+    attempts and last_error exist so a failure is visible rather than silent.
+    A document that can never be parsed must fail loudly and step aside, not
+    block everything queued behind it.
+    """
+
+    __table_args__ = (Index("ix_ingestionjob_status_id", "status", "id"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    document_id: int = Field(foreign_key="document.id")
+    status: IngestionStatus = Field(
+        default=IngestionStatus.PENDING,
+        sa_column=Column(
+            SAEnum(
+                IngestionStatus,
+                values_callable=lambda enum_cls: [member.value for member in enum_cls],
+                name="ingestionstatus",
+            ),
+            nullable=False,
+        ),
+    )
+    attempts: int = Field(default=0)
+    last_error: str | None = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
