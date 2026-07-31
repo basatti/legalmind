@@ -131,11 +131,21 @@ class Document(SQLModel, table=True):
     file_path: str
     uploaded_by: int = Field(foreign_key="user.id")
     uploaded_at: datetime = Field(default_factory=datetime.now)
+    ingested_content_hash: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # LEG-58: Document chunk model
 # ---------------------------------------------------------------------------
+
+
+EMBEDDING_DIMENSIONS = 1024
+"""Width of every stored vector.
+
+Fixed in the database column, so changing it means a new migration AND
+re-embedding every document — vectors of different widths cannot be compared.
+Chosen to match BGE-M3 / multilingual-e5-large; revisit once a model is picked.
+"""
 
 
 class DocumentChunk(SQLModel, table=True):
@@ -164,7 +174,7 @@ class DocumentChunk(SQLModel, table=True):
 
     text: str
 
-    embedding: list[float] = Field(sa_column=Column(Vector(1024), nullable=False))
+    embedding: list[float] = Field(sa_column=Column(Vector(EMBEDDING_DIMENSIONS), nullable=False))
 
     created_at: datetime = Field(default_factory=datetime.now)
 
