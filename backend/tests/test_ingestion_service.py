@@ -113,9 +113,7 @@ def test_ingest_persists_a_chunk_row_per_chunk(session, minimal_pdf_bytes):
     assert all(len(chunk.embedding) == EMBEDDING_DIMENSIONS for chunk in stored)
 
 
-def test_ingest_replaces_rather_than_duplicates_chunks_on_forced_rerun(
-    session, minimal_pdf_bytes
-):
+def test_ingest_replaces_rather_than_duplicates_chunks_on_forced_rerun(session, minimal_pdf_bytes):
     document = make_document(session, minimal_pdf_bytes)
     pipeline = build_pipeline(session)
 
