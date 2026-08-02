@@ -152,6 +152,21 @@ def test_an_attorney_gets_nothing_from_a_case_they_are_not_assigned_to(
     assert response.json()["answer"] is None
 
 
+def test_a_paralegal_assigned_to_the_case_gets_an_answer(client, session, fake_providers):
+    case = make_case(session)
+    user_id = create_user_and_login(client, session, "priya@example.com", Role.PARALEGAL)
+    assign(session, user_id, case.id)
+    chunk = make_searchable_chunk(session, case.id, user_id)
+
+    response = ask(client)
+    body = response.json()
+
+    print(body)
+    assert response.status_code == 200
+    assert body["answer"] == STUB_REPLY
+    assert body["citations"] == [{"document_id": chunk.document_id, "page_number": 3}]
+
+
 def test_a_paralegal_with_no_assigned_cases_gets_a_clean_no_answer(client, session):
     create_user_and_login(client, session, "priya@example.com", Role.PARALEGAL)
 
