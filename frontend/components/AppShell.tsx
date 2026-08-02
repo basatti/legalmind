@@ -2,59 +2,71 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { usePermission } from "@/lib/usePermission";
 
-// ---------------------------------------------------------------------------
-// Logged-out shell
-// ---------------------------------------------------------------------------
-
-function GuestShell({ children }: { children: ReactNode }) {
+function Signature() {
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <header className="border-b border-neutral-100 px-6 py-4 flex items-center justify-between">
-        <span className="text-sm font-semibold tracking-tight text-neutral-900">
-          LegalMind
-        </span>
-        <a
-          href="/login"
-          className="bg-neutral-900 text-white text-xs rounded-md px-3 py-1.5 hover:bg-neutral-800 transition-colors"
-        >
-          Sign in
-        </a>
-      </header>
-      <main className="flex-1 flex items-center justify-center px-6">
-        {children}
-      </main>
+    <div className="fixed bottom-3 right-4 z-40 pointer-events-none">
+      <span className="font-mono text-[11px] tracking-wide text-slate/50">
+        Built by Abdullah · Rayan · Yazan
+      </span>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Role-aware sidebar nav
-// ---------------------------------------------------------------------------
+function GuestShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-screen bg-paper flex flex-col">
+      <header className="border-b border-ink/10 px-6 py-4 flex items-center justify-between bg-paper-card">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-full border border-brass-light flex items-center justify-center font-serif text-sm text-brass-dark">
+            L
+          </div>
+          <span className="font-serif text-base tracking-tight text-ink">
+            LegalMind
+          </span>
+        </div>
+        <span className="text-xs text-slate">Sign in to continue</span>
+      </header>
+      <main className="flex-1 flex items-center justify-center px-6">
+        {children}
+      </main>
+      <Signature />
+    </div>
+  );
+}
 
 function SideNav() {
   const canManageUsers = usePermission("user:manage");
   const canAssign = usePermission("case:assign");
 
   return (
-    <nav className="w-52 bg-white border-r border-neutral-100 px-4 py-6 flex flex-col gap-1">
-      {/* Everyone with case access sees Cases */}
-      <NavItem href="/cases">Cases</NavItem>
+    <nav className="w-64 bg-ink flex flex-col shrink-0">
+      <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
+        <div className="w-8 h-8 rounded-full border border-brass-light flex items-center justify-center font-serif text-base text-brass-light">
+          L
+        </div>
+        <span className="font-serif text-lg text-paper">LegalMind</span>
+      </div>
 
-      {/* Partner + Admin only — assign cases */}
-      {canAssign && <NavItem href="/cases/assign">Assign Cases</NavItem>}
+      <div className="flex-1 py-6 space-y-1">
+        <NavItem href="/cases">Cases</NavItem>
+        {canAssign && <NavItem href="/cases/assign">Assign cases</NavItem>}
+        {canManageUsers && (
+          <NavItem href="/admin/users">User management</NavItem>
+        )}
+      </div>
 
-      {/* Admin only — user management */}
-      {canManageUsers && <NavItem href="/admin/users">User Management</NavItem>}
+      <div className="px-6 py-5 border-t border-white/10">
+        <p className="font-mono text-[11px] text-paper/30 tracking-wide">
+          DOCKET SYSTEM · EST. 2026
+        </p>
+      </div>
     </nav>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Logged-in shell
-// ---------------------------------------------------------------------------
 
 function AuthenticatedShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
@@ -68,48 +80,54 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col">
-      <header className="bg-white border-b border-neutral-100 px-6 py-4 flex items-center justify-between">
-        <span className="text-sm font-semibold tracking-tight text-neutral-900">
-          LegalMind
-        </span>
-        <div className="flex items-center gap-4">
-          {user && (
-            <>
-              <span className="text-xs text-neutral-400 capitalize">
-                {user.role}
-              </span>
-              <span className="text-xs text-neutral-500">{user.email}</span>
-            </>
-          )}
-          <button
-            onClick={handleLogout}
-            className="text-xs text-neutral-500 hover:text-neutral-900 transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-      <div className="flex flex-1">
-        <SideNav />
-        <main className="flex-1 px-8 py-6">{children}</main>
+    <div className="min-h-screen bg-paper flex">
+      <SideNav />
+
+      <div className="flex-1 flex flex-col">
+        <header className="bg-paper-card border-b border-ink/5 px-8 py-4 flex items-center justify-between">
+          <div />
+          <div className="flex items-center gap-4">
+            {user && (
+              <>
+                <span className="text-xs font-medium text-brass-dark bg-brass/10 px-3 py-1.5 rounded-full capitalize">
+                  {user.role}
+                </span>
+                <div className="text-right leading-tight">
+                  <p className="text-sm font-medium text-ink">
+                    {user.email}
+                  </p>
+                  <button
+                    onClick={handleLogout}
+                    className="text-xs text-slate hover:text-oxblood transition-colors"
+                  >
+                    Sign out
+                  </button>
+                </div>
+                <div className="w-9 h-9 rounded-full bg-ink text-paper flex items-center justify-center font-serif text-sm">
+                  {user.email.charAt(0).toUpperCase()}
+                </div>
+              </>
+            )}
+          </div>
+        </header>
+
+        <main className="flex-1 px-8 py-6 bg-paper">{children}</main>
       </div>
+
+      <Signature />
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Nav item
-// ---------------------------------------------------------------------------
-
 function NavItem({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a
+    <Link
       href={href}
-      className="text-sm text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 px-3 py-2 rounded-md transition-colors"
+      className="flex items-center gap-3 px-6 py-3 text-paper hover:text-brass-light hover:bg-white/5 text-sm font-medium transition-colors whitespace-nowrap"
     >
+      <span className="w-4 h-4 border border-brass-light/50 rounded-sm shrink-0" />
       {children}
-    </a>
+    </Link>
   );
 }
 
@@ -135,10 +153,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <span className="text-sm text-neutral-400">Loading…</span>
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <span className="text-sm text-slate font-mono">Loading…</span>
       </div>
     );
+  }
+
+  if (pathname === "/login") {
+    return <>{children}</>;
   }
 
   if (!isAuthenticated) {
