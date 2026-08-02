@@ -1,8 +1,4 @@
-﻿interface Citation {
-  document_id: number;
-  page_number: number;
-}
-
+﻿import type { Citation } from "@/types/api";
 interface AnswerPanelProps {
   answer: string;
   citations: Citation[];
@@ -49,4 +45,5 @@ export function AnswerPanel({ answer, citations }: AnswerPanelProps) {
     </div>
   );
 }
+
 
