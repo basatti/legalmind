@@ -1,5 +1,6 @@
 from sqlmodel import Session, col, select
 
+from embeddings import Vector
 from foundation.models import DocumentChunk
 
 
@@ -27,6 +28,37 @@ class DocumentChunkRepository:
 
     def get_by_case(self, case_id: int) -> list[DocumentChunk]:
         statement = select(DocumentChunk).where(DocumentChunk.case_id == case_id)
+        return list(self.session.exec(statement).all())
+
+    #Leg 62 
+    def search(
+        self,
+        question_vector: Vector,
+        authorized_case_ids: list[int] | None,
+        top_k: int,
+    ) -> list[DocumentChunk]:
+        """Filter to authorized cases, then rank top-k within that set.
+
+        Never search-then-filter: the WHERE narrows the candidate set to
+        cases the caller is allowed to see *before* the ORDER BY ranks by
+        distance, so a chunk outside the user's assignments can never
+        occupy one of the k slots.
+
+        authorized_case_ids:
+          - None -> no restriction (e.g. Partner/Admin with case:read:any)
+          - []   -> restricted, and authorized for nothing -> no results
+          - [.., ..] -> restricted to exactly these cases
+        """
+        if authorized_case_ids is not None and not authorized_case_ids:
+            return []
+
+        statement = select(DocumentChunk).order_by(
+            DocumentChunk.embedding.cosine_distance(question_vector)
+        )
+        if authorized_case_ids is not None:
+            statement = statement.where(col(DocumentChunk.case_id).in_(authorized_case_ids))
+        statement = statement.limit(top_k)
+
         return list(self.session.exec(statement).all())
 
     def delete_by_document(self, document_id: int) -> int:
