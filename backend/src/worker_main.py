@@ -15,9 +15,8 @@ import signal
 import time
 from types import FrameType
 
-from embeddings.offline import OfflineEmbeddingProvider
+from embeddings.bge_m3 import BgeM3EmbeddingProvider
 from foundation.database import get_session
-from foundation.models import EMBEDDING_DIMENSIONS
 from repositories.ingestion_job_repository import IngestionJobRepository
 from services.ingestion_service import ParseAndChunkPipeline
 from services.ingestion_worker import IngestionWorker
@@ -36,12 +35,11 @@ def _request_shutdown(signum: int, frame: FrameType | None) -> None:
 
 
 def run_forever() -> None:
-    # OfflineEmbeddingProvider is hash-based and captures no meaning — see its
-    # docstring. It's used here because no real model has been chosen yet
-    # (LEG-58). Kept as an explicit choice at this entrypoint, not a silent
-    # default inside the pipeline, so switching to a real provider later is a
-    # one-line change here rather than a change to the pipeline's behavior.
-    embedding_provider = OfflineEmbeddingProvider(dimensions=EMBEDDING_DIMENSIONS)
+    # Constructed once per process, not once per job — loading BGE-M3 takes a
+    # few seconds and should happen at startup, not on every claimed job.
+    # Requires the `embeddings` extra (`uv sync --extra embeddings`); the
+    # weights download once on first run and are cached after that.
+    embedding_provider = BgeM3EmbeddingProvider()
 
     while not _shutting_down:
         # A fresh session per cycle. A long-lived one would eventually hold a
@@ -67,11 +65,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _request_shutdown)
 
     logger.info("ingestion worker started")
-    logger.warning(
-        "running with OfflineEmbeddingProvider — stored vectors are hash-based "
-        "and carry no semantic meaning; retrieval quality cannot be evaluated "
-        "until a real embedding model is wired in (LEG-58)"
-    )
+    logger.info("loading BGE-M3 (first run downloads the weights, then caches them)")
     run_forever()
     logger.info("ingestion worker stopped")
 

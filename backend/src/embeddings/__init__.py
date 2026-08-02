@@ -4,9 +4,11 @@ Turns chunk text into vectors. Knows nothing about cases, documents, or storage.
 """
 
 from embeddings.base import EmbeddingProvider, Vector
+from embeddings.bge_m3 import BgeM3EmbeddingProvider
 from embeddings.offline import OfflineEmbeddingProvider
 
 __all__ = [
+    "BgeM3EmbeddingProvider",
     "EmbeddingProvider",
     "OfflineEmbeddingProvider",
     "Vector",
