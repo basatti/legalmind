@@ -151,3 +151,25 @@ export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
   revisions_requested: "Revisions Requested",
   closed: "Closed",
 };
+
+// ---------------------------------------------------------------------------
+// RAG — ask a question, scoped to the user's authorized cases
+//
+// Note: matches the actual backend response (foundation/schemas.py
+// QueryAskResponse / CitationResponse), which returns only document_id and
+// page_number per citation — not filename/chunk_text.
+// ---------------------------------------------------------------------------
+
+export interface AskRequest {
+  question: string;
+}
+
+export interface Citation {
+  document_id: number;
+  page_number: number;
+}
+
+export interface AskResponse {
+  answer: string | null;
+  citations: Citation[];
+}

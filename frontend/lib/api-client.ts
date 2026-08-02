@@ -1,5 +1,7 @@
 import type {
   Assignment,
+  AskRequest,
+  AskResponse,
   Case,
   CaseCreateRequest,
   CaseTransitionRequest,
@@ -225,6 +227,20 @@ export const apiClient = {
 
     create(data: UserCreateRequest): Promise<User> {
       return apiFetch<User>("/users/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+  },
+
+  rag: {
+    /**
+     * POST /query/ask — ask a question, scoped to the user's authorized
+     * cases on the backend. Note: not /cases/{id}/ask — the backend
+     * determines scope from the user's assignments, not a path param.
+     */
+    ask(data: AskRequest): Promise<AskResponse> {
+      return apiFetch<AskResponse>("/query/ask", {
         method: "POST",
         body: JSON.stringify(data),
       });
