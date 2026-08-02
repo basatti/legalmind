@@ -30,7 +30,7 @@ class DocumentChunkRepository:
         statement = select(DocumentChunk).where(DocumentChunk.case_id == case_id)
         return list(self.session.exec(statement).all())
 
-    #Leg 62 
+    # Leg 62
     def search(
         self,
         question_vector: Vector,
@@ -53,7 +53,7 @@ class DocumentChunkRepository:
             return []
 
         statement = select(DocumentChunk).order_by(
-            DocumentChunk.embedding.cosine_distance(question_vector)
+            DocumentChunk.embedding.cosine_distance(question_vector)  # type: ignore[attr-defined]
         )
         if authorized_case_ids is not None:
             statement = statement.where(col(DocumentChunk.case_id).in_(authorized_case_ids))
