@@ -211,9 +211,23 @@ class QueryAskRequest(BaseModel):
         return value
 
 
+class CitationResponse(BaseModel):
+    """Where one part of an answer came from, in terms a person can go and check."""
+
+    document_id: int
+    page_number: int
+
+
 class QueryAskResponse(BaseModel):
-    """answer is None when the user has no authorized cases to search, or
-    (until LEG-62/63 land) when retrieval hasn't found grounding for the
-    question — never a guess, and never an HTTP error for either case."""
+    """answer is None whenever there is nothing to say: the user has no
+    authorized cases, retrieval found nothing, or the model's reply could not be
+    trusted. All three look identical to the caller on purpose — never a guess,
+    and never an HTTP error for any of them.
+
+    citations is empty when answer is None, and otherwise lists every place the
+    answer draws on, so the reader can verify it against the source rather than
+    taking it on faith.
+    """
 
     answer: str | None = None
+    citations: list[CitationResponse] = []

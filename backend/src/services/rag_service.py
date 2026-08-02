@@ -1,17 +1,30 @@
 """RAG query service (LEG-14).
 
-Depends on CaseReader (LEG-64), not a repository, so retrieval code can never
-be handed anything with write/export capability by accident (ISP).
+The front door for a question. This is the only place in the system where a
+user's authorisation is resolved into a scope; everything below it receives
+that scope as an argument and never works it out again.
+
+Sequence: resolve what the user may see, retrieve passages inside that scope,
+turn them into a grounded answer, and hand back the answer with its citations.
 """
 
 from foundation.authorization import CaseReader, TheseCases
-from foundation.models import User
-from foundation.schemas import QueryAskResponse
+from foundation.models import DocumentChunk, User
+from foundation.schemas import CitationResponse, QueryAskResponse
+from services.answer_service import AnswerService
+from services.retrieval_service import RetrievalService, RetrievedMatch
 
 
 class RagService:
-    def __init__(self, case_reader: CaseReader) -> None:
+    def __init__(
+        self,
+        case_reader: CaseReader,
+        retrieval: RetrievalService,
+        answers: AnswerService,
+    ) -> None:
         self.case_reader = case_reader
+        self.retrieval = retrieval
+        self.answers = answers
 
     def ask(self, question: str, user: User) -> QueryAskResponse:
         authorized = self.case_reader.authorized_cases(user)
@@ -21,7 +34,35 @@ class RagService:
             # "no answer", not an error (LEG-65).
             return QueryAskResponse(answer=None)
 
-        # Retrieval + grounded generation land in LEG-62/LEG-63. Until then,
-        # there is authorized ground to search but nothing yet to search it
-        # with — that is a 501, not a fabricated answer.
-        raise NotImplementedError("Retrieval is not implemented yet (LEG-62/LEG-63)")
+        matches = self.retrieval.retrieve(question, within=authorized)
+        answer = self.answers.answer(question, self._passages(matches))
+
+        if not answer.answered:
+            return QueryAskResponse(answer=None)
+
+        return QueryAskResponse(
+            answer=answer.text,
+            citations=[
+                CitationResponse(
+                    document_id=citation.document_id,
+                    page_number=citation.page_number,
+                )
+                for citation in answer.citations
+            ],
+        )
+
+    @staticmethod
+    def _passages(matches: list[RetrievedMatch]) -> list[DocumentChunk]:
+        """Flatten the matches into one ordered list, each chunk appearing once.
+
+        Two matches close together in the same document can pull in the same
+        neighbour, and a chunk sent twice would be numbered twice in the prompt
+        — so the model could cite the same page under two different numbers.
+        Keyed by (document, sequence) rather than by row id, since that holds
+        whether or not the rows came from the database with ids populated.
+        """
+        unique: dict[tuple[int, int], DocumentChunk] = {}
+        for match in matches:
+            for chunk in match.context_chunks:
+                unique.setdefault((chunk.document_id, chunk.sequence), chunk)
+        return list(unique.values())

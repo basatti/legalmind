@@ -54,7 +54,7 @@ class CaseReader(Protocol):
 
 @runtime_checkable
 class ChunkSearcher(Protocol):
-    """Searches stored chunks, within a set of cases the caller has authorised."""
+    """Reads and searches stored chunks. No writes, no deletes, nothing else."""
 
     def search(
         self,
@@ -64,8 +64,17 @@ class ChunkSearcher(Protocol):
     ) -> list[DocumentChunk]:
         """The `limit` closest chunks to query_vector, from `within` only.
 
-        Takes `within` rather than case ids so the restriction and the search are
-        the same call — an implementation has no way to run the search first and
-        filter afterwards.
+        Takes `within` rather than case ids so the restriction and the search
+        are the same call — an implementation has no way to run the search
+        first and filter afterwards.
+        """
+        ...
+
+    def get_by_document(self, document_id: int) -> list[DocumentChunk]:
+        """Every chunk of one document, in reading order.
+
+        Retrieval needs this to fetch the neighbours of a match that was cut
+        off at a chunk boundary. It is a read, so it belongs in this interface;
+        add_many, delete_by_document and replace_for_document do not.
         """
         ...

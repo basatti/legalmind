@@ -81,6 +81,9 @@ class FakeChunkSearcher:
     ) -> list[DocumentChunk]:
         return []
 
+    def get_by_document(self, document_id: int) -> list[DocumentChunk]:
+        return []
+
 
 def test_a_class_with_the_right_methods_satisfies_the_interfaces() -> None:
     assert isinstance(FakeCaseReader(), CaseReader)

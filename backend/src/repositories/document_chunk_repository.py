@@ -1,6 +1,7 @@
 from sqlmodel import Session, col, select
 
 from embeddings import Vector
+from foundation.authorization import AuthorizedCases, TheseCases
 from foundation.models import DocumentChunk
 
 
@@ -30,36 +31,33 @@ class DocumentChunkRepository:
         statement = select(DocumentChunk).where(DocumentChunk.case_id == case_id)
         return list(self.session.exec(statement).all())
 
-    # Leg 62
+    # LEG-62
     def search(
         self,
-        question_vector: Vector,
-        authorized_case_ids: list[int] | None,
-        top_k: int,
+        query_vector: Vector,
+        within: AuthorizedCases,
+        limit: int,
     ) -> list[DocumentChunk]:
-        """Filter to authorized cases, then rank top-k within that set.
+        """Filter to authorized cases, then rank the closest `limit` chunks.
 
-        Never search-then-filter: the WHERE narrows the candidate set to
-        cases the caller is allowed to see *before* the ORDER BY ranks by
-        distance, so a chunk outside the user's assignments can never
-        occupy one of the k slots.
+        Never search-then-filter: the WHERE narrows the candidate set to cases
+        the caller may see *before* the ORDER BY ranks by distance, so a chunk
+        outside the user's authorisation can never occupy one of the k slots.
 
-        authorized_case_ids:
-          - None -> no restriction (e.g. Partner/Admin with case:read:any)
-          - []   -> restricted, and authorized for nothing -> no results
-          - [.., ..] -> restricted to exactly these cases
+        Takes the authorisation itself rather than a list of ids, so "may see
+        everything" and "may see nothing" arrive as different types and the
+        branch below cannot be skipped.
         """
-        if authorized_case_ids is not None and not authorized_case_ids:
-            return []
-
         statement = select(DocumentChunk).order_by(
-            DocumentChunk.embedding.cosine_distance(question_vector)  # type: ignore[attr-defined]
+            DocumentChunk.embedding.cosine_distance(query_vector)  # type: ignore[attr-defined]
         )
-        if authorized_case_ids is not None:
-            statement = statement.where(col(DocumentChunk.case_id).in_(authorized_case_ids))
-        statement = statement.limit(top_k)
 
-        return list(self.session.exec(statement).all())
+        if isinstance(within, TheseCases):
+            if not within.case_ids:
+                return []
+            statement = statement.where(col(DocumentChunk.case_id).in_(list(within.case_ids)))
+
+        return list(self.session.exec(statement.limit(limit)).all())
 
     def delete_by_document(self, document_id: int) -> int:
         """Remove all chunks of a document, returning how many were removed."""

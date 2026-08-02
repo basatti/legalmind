@@ -2,12 +2,18 @@
 
 Two layers, tested separately:
   - DocumentChunkRepository.search: filter-then-rank, never search-then-filter.
-  - RetrievalService: resolves *who* is authorized for *what*, and stitches
-    in neighbouring chunks when a match landed at a chunk boundary.
+  - RetrievalService: searches inside a scope it is handed, and stitches in
+    neighbouring chunks when a match landed at a chunk boundary.
+
+Scope is no longer resolved by RetrievalService — it arrives as an
+AuthorizedCases value, so these tests build it the same way the API does, via
+AssignmentCaseReader.
 """
 
 from embeddings import OfflineEmbeddingProvider
+from foundation.authorization import AllCases, AuthorizedCases, TheseCases
 from foundation.models import Assignment, Case, Document, DocumentChunk, Role, User
+from repositories.assignment_case_reader import AssignmentCaseReader
 from repositories.assignment_repository import AssignmentRepository
 from repositories.document_chunk_repository import DocumentChunkRepository
 from services.retrieval_service import RetrievalService
@@ -80,6 +86,12 @@ def assign(session, user: User, case: Case) -> None:
     session.commit()
 
 
+def scope_for(session, user: User) -> AuthorizedCases:
+    """What this user is authorized to search, resolved the same way the API
+    resolves it."""
+    return AssignmentCaseReader(AssignmentRepository(session)).authorized_cases(user)
+
+
 # ---------------------------------------------------------------------------
 # Repository: filter-then-rank
 # ---------------------------------------------------------------------------
@@ -101,16 +113,16 @@ def test_search_never_returns_a_chunk_outside_the_authorized_cases(session):
     # it must never surface -- proves filtering happens before ranking,
     # not after.
     results = repo.search(
-        question_vector=EMBEDDER.embed(["termination clause"])[0],
-        authorized_case_ids=[allowed_case.id],
-        top_k=5,
+        query_vector=EMBEDDER.embed(["termination clause"])[0],
+        within=TheseCases(frozenset({allowed_case.id})),
+        limit=5,
     )
 
     assert other_match.id not in [chunk.id for chunk in results]
     assert all(chunk.case_id == allowed_case.id for chunk in results)
 
 
-def test_search_with_empty_authorized_list_returns_nothing(session):
+def test_search_authorized_for_nothing_returns_nothing(session):
     repo = DocumentChunkRepository(session)
     case = make_case(session)
     uploader = make_user(session, "u2@example.com", Role.ADMIN)
@@ -118,15 +130,15 @@ def test_search_with_empty_authorized_list_returns_nothing(session):
     make_chunk(session, case, document, "a clause", 0)
 
     results = repo.search(
-        question_vector=EMBEDDER.embed(["a clause"])[0],
-        authorized_case_ids=[],
-        top_k=5,
+        query_vector=EMBEDDER.embed(["a clause"])[0],
+        within=TheseCases(frozenset()),
+        limit=5,
     )
 
     assert results == []
 
 
-def test_search_with_none_is_unrestricted(session):
+def test_search_with_all_cases_is_unrestricted(session):
     repo = DocumentChunkRepository(session)
     case_a = make_case(session, "A")
     case_b = make_case(session, "B")
@@ -137,9 +149,9 @@ def test_search_with_none_is_unrestricted(session):
     make_chunk(session, case_b, doc_b, "clause two", 0)
 
     results = repo.search(
-        question_vector=EMBEDDER.embed(["clause one"])[0],
-        authorized_case_ids=None,
-        top_k=5,
+        query_vector=EMBEDDER.embed(["clause one"])[0],
+        within=AllCases(),
+        limit=5,
     )
 
     assert {chunk.case_id for chunk in results} == {case_a.id, case_b.id}
@@ -155,16 +167,16 @@ def test_search_ranks_the_closest_match_first(session):
     unrelated = make_chunk(session, case, document, "parking regulations", 1)
 
     results = repo.search(
-        question_vector=EMBEDDER.embed(["unfair dismissal"])[0],
-        authorized_case_ids=[case.id],
-        top_k=2,
+        query_vector=EMBEDDER.embed(["unfair dismissal"])[0],
+        within=TheseCases(frozenset({case.id})),
+        limit=2,
     )
 
     assert results[0].id == exact.id
     assert results[-1].id == unrelated.id
 
 
-def test_search_respects_top_k(session):
+def test_search_respects_the_limit(session):
     repo = DocumentChunkRepository(session)
     case = make_case(session)
     uploader = make_user(session, "u5@example.com", Role.ADMIN)
@@ -173,23 +185,22 @@ def test_search_respects_top_k(session):
         make_chunk(session, case, document, f"clause {i}", i)
 
     results = repo.search(
-        question_vector=EMBEDDER.embed(["clause 0"])[0],
-        authorized_case_ids=[case.id],
-        top_k=2,
+        query_vector=EMBEDDER.embed(["clause 0"])[0],
+        within=TheseCases(frozenset({case.id})),
+        limit=2,
     )
 
     assert len(results) == 2
 
 
 # ---------------------------------------------------------------------------
-# Service: authorization scoping
+# Service: searching inside a scope it is given
 # ---------------------------------------------------------------------------
 
 
 def _service(session) -> RetrievalService:
     return RetrievalService(
-        chunk_repository=DocumentChunkRepository(session),
-        assignment_repository=AssignmentRepository(session),
+        chunks=DocumentChunkRepository(session),
         embedding_provider=EMBEDDER,
     )
 
@@ -205,7 +216,9 @@ def test_attorney_only_retrieves_from_assigned_cases(session):
     make_chunk(session, assigned_case, assigned_doc, "شرط الإنهاء.", 0)
     make_chunk(session, other_case, other_doc, "شرط الإنهاء.", 0)
 
-    results = _service(session).retrieve(attorney, "شرط الإنهاء.", top_k=5)
+    results = _service(session).retrieve(
+        "شرط الإنهاء.", within=scope_for(session, attorney), top_k=5
+    )
 
     assert all(r.match.case_id == assigned_case.id for r in results)
 
@@ -220,7 +233,9 @@ def test_partner_retrieves_across_all_cases(session):
     make_chunk(session, case_a, doc_a, "بند الإيجار.", 0)
     make_chunk(session, case_b, doc_b, "بند الإيجار.", 0)
 
-    results = _service(session).retrieve(partner, "بند الإيجار.", top_k=5)
+    results = _service(session).retrieve(
+        "بند الإيجار.", within=scope_for(session, partner), top_k=5
+    )
 
     assert {r.match.case_id for r in results} == {case_a.id, case_b.id}
 
@@ -232,7 +247,9 @@ def test_attorney_with_no_assignments_gets_nothing(session):
     document = make_document(session, case, admin)
     make_chunk(session, case, document, "بند الإيجار.", 0)
 
-    results = _service(session).retrieve(attorney, "بند الإيجار.", top_k=5)
+    results = _service(session).retrieve(
+        "بند الإيجار.", within=scope_for(session, attorney), top_k=5
+    )
 
     assert results == []
 
@@ -252,7 +269,9 @@ def test_a_chunk_cut_off_mid_sentence_pulls_in_its_neighbours(session):
     cut_off = make_chunk(session, case, document, "of at least thirty days before", 1)
     after = make_chunk(session, case, document, "vacating the premises.", 2)
 
-    results = _service(session).retrieve(partner, "of at least thirty days before", top_k=1)
+    results = _service(session).retrieve(
+        "of at least thirty days before", within=scope_for(session, partner), top_k=1
+    )
 
     assert len(results) == 1
     context_ids = {chunk.id for chunk in results[0].context_chunks}
@@ -268,7 +287,9 @@ def test_a_clean_self_contained_chunk_does_not_pull_in_neighbours(session):
     clean = make_chunk(session, case, document, "The lease terminates on notice.", 1)
     make_chunk(session, case, document, "Unrelated following clause.", 2)
 
-    results = _service(session).retrieve(partner, "The lease terminates on notice.", top_k=1)
+    results = _service(session).retrieve(
+        "The lease terminates on notice.", within=scope_for(session, partner), top_k=1
+    )
 
     assert len(results) == 1
     assert [chunk.id for chunk in results[0].context_chunks] == [clean.id]
