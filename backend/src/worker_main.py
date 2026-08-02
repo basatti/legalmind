@@ -15,7 +15,7 @@ import signal
 import time
 from types import FrameType
 
-from embeddings.bge_m3 import BgeM3EmbeddingProvider
+from embeddings.company_api import CompanyEmbeddingProvider
 from foundation.database import get_session
 from repositories.ingestion_job_repository import IngestionJobRepository
 from services.ingestion_service import ParseAndChunkPipeline
@@ -35,11 +35,10 @@ def _request_shutdown(signum: int, frame: FrameType | None) -> None:
 
 
 def run_forever() -> None:
-    # Constructed once per process, not once per job — loading BGE-M3 takes a
-    # few seconds and should happen at startup, not on every claimed job.
-    # Requires the `embeddings` extra (`uv sync --extra embeddings`); the
-    # weights download once on first run and are cached after that.
-    embedding_provider = BgeM3EmbeddingProvider()
+    # Constructed once per process, not once per job. Must be the same model
+    # query_router.py uses for questions — vectors from two different models
+    # cannot be compared at all.
+    embedding_provider = CompanyEmbeddingProvider()
 
     while not _shutting_down:
         # A fresh session per cycle. A long-lived one would eventually hold a
@@ -65,7 +64,6 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _request_shutdown)
 
     logger.info("ingestion worker started")
-    logger.info("loading BGE-M3 (first run downloads the weights, then caches them)")
     run_forever()
     logger.info("ingestion worker stopped")
 
