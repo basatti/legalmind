@@ -193,3 +193,27 @@ class DocumentOut(BaseModel):
     filename: str
     uploaded_by: int
     uploaded_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# LEG-61: Scoped query endpoint
+# ---------------------------------------------------------------------------
+
+
+class QueryAskRequest(BaseModel):
+    question: str
+
+    @field_validator("question")
+    @classmethod
+    def validate_question(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Question must not be empty")
+        return value
+
+
+class QueryAskResponse(BaseModel):
+    """answer is None when the user has no authorized cases to search, or
+    (until LEG-62/63 land) when retrieval hasn't found grounding for the
+    question — never a guess, and never an HTTP error for either case."""
+
+    answer: str | None = None
