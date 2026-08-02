@@ -203,3 +203,38 @@ def test_an_empty_question_is_rejected(client, session):
     response = client.post("/query/ask", json={"question": "   "})
 
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Regression: FastAPI resolves every declared dependency of a route before
+# running its handler, so building the real providers eagerly meant every
+# request needed COMPANY_API_URL/COMPANY_API_KEY set - including requests
+# rejected before ever reaching retrieval. get_embedding_provider and
+# get_llm_provider must stay lazy (see LazyEmbeddingProvider/LazyLLMProvider),
+# or these come back.
+# ---------------------------------------------------------------------------
+
+
+def test_a_rejected_request_never_needs_the_company_api_credentials(client, session, monkeypatch):
+    monkeypatch.delenv("COMPANY_API_URL", raising=False)
+    monkeypatch.delenv("COMPANY_API_KEY", raising=False)
+    create_user_and_login(client, session, "amy@example.com", Role.ATTORNEY)
+
+    response = client.post("/query/ask", json={"question": "   "})
+
+    print(response.status_code, response.json())
+    assert response.status_code == 422
+
+
+def test_an_empty_authorized_scope_never_needs_the_company_api_credentials(
+    client, session, monkeypatch
+):
+    monkeypatch.delenv("COMPANY_API_URL", raising=False)
+    monkeypatch.delenv("COMPANY_API_KEY", raising=False)
+    create_user_and_login(client, session, "amy@example.com", Role.ATTORNEY)
+
+    response = ask(client)
+
+    print(response.status_code, response.json())
+    assert response.status_code == 200
+    assert response.json()["answer"] is None
