@@ -13,3 +13,8 @@ backend/data/
 # Uploaded/test files land wherever pytest was launched from, because
 # LocalDiskStorage's base_dir is a relative path. Ignore both locations.
 storage/
+
+# Personal Claude Code tooling config (.claude/settings.json is shared team
+# config and stays tracked; these two are per-developer/local-only).
+.claude/launch.json
+.claude/settings.local.json
