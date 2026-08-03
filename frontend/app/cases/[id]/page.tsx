@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import { FeedbackThread } from "@/components/FeedbackThread";
 import { ErrorState, Loading } from "@/components/ui";
 import { NotAuthorized } from "@/components/ui/NotAuthorized";
 import { DocumentsSection } from "@/components/DocumentsSection";
+import { RagSection } from "@/components/RagSection";
 import { RequireAuth } from "@/components/RequireAuth";
 import { usePermission } from "@/lib/usePermission";
 import type { Permission } from "@/lib/permissions";
@@ -94,7 +95,7 @@ function TransitionButton({
       disabled={isLoading}
       className="text-sm border border-neutral-200 rounded-md px-3 py-1.5 hover:bg-neutral-50 transition-colors disabled:opacity-50"
     >
-      {isLoading ? "…" : `→ ${CASE_STATUS_LABELS[targetStatus]}`}
+      {isLoading ? "â€¦" : `â†’ ${CASE_STATUS_LABELS[targetStatus]}`}
     </button>
   );
 
@@ -144,7 +145,7 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
       .finally(() => setIsLoading(false));
   }, [caseId]);
 
-  if (isLoading) return <Loading message="Loading case…" />;
+  if (isLoading) return <Loading message="Loading caseâ€¦" />;
   if (isNotAuthorized) return <NotAuthorized />;
   if (error || !caseData) return <ErrorState message={error ?? "Case not found."} />;
 
@@ -157,7 +158,7 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
         onClick={() => router.push("/cases")}
         className="text-sm text-neutral-500 hover:text-neutral-900 mb-6 flex items-center gap-1 transition-colors"
       >
-        ← Cases
+        â† Cases
       </button>
 
       {/* Header */}
@@ -255,17 +256,17 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
             disabled={isSubmittingReview || reviewContent.trim().length === 0}
             className="text-sm rounded-md bg-neutral-900 text-white px-4 py-2 hover:bg-neutral-800 disabled:opacity-50 transition-colors"
           >
-            {isSubmittingReview ? "Submitting…" : "Submit review"}
+            {isSubmittingReview ? "Submittingâ€¦" : "Submit review"}
           </button>
         </div>
       )}
 
-      {/* Review thread — every round opened on this case, with replies + resolve */}
+      {/* Review thread â€” every round opened on this case, with replies + resolve */}
       <div className="mb-4">
         <FeedbackThread caseId={caseData.id!} refreshKey={threadRefreshKey} />
       </div>
 
-      {/* Edit — assigned users only */}
+      {/* Edit â€” assigned users only */}
       <CanDoAny permissions={["case:edit:any", "case:edit:assigned"]}>
         <div className="bg-white border border-neutral-200 rounded-lg px-5 py-4">
           <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-3">
@@ -281,6 +282,8 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
       </CanDoAny>
 
       <DocumentsSection caseId={caseData.id!} />
+
+      <RagSection />
     </div>
   );
 }
@@ -295,3 +298,6 @@ export default function CaseDetailPage() {
     </RequireAuth>
   );
 }
+
+
+
