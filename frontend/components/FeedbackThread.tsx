@@ -154,6 +154,7 @@ export function FeedbackThread({
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- known limitation, pending a data-fetching library decision (SWR/TanStack Query) to replace manual loading/error state
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId, refreshKey]);
