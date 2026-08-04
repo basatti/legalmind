@@ -227,6 +227,27 @@ class QueryAskResponse(BaseModel):
     citations is empty when answer is None, and otherwise lists every place the
     answer draws on, so the reader can verify it against the source rather than
     taking it on faith.
+
+    LEG-75 locks this shape against exposing the graph's internals. `GraphState`
+    carries `route` and `reasoning` (LEG-74), and neither belongs here:
+
+    - Reasoning is unvalidated. `AnswerService` discards a reply that cites a
+      passage it wasn't given, cites nothing, or reports NOT_FOUND — that check
+      is why `answer` can be put in front of a lawyer. Nothing checks the
+      reason node's intermediate working. Rendered beside a validated answer,
+      a discarded sub-conclusion reads as a finding.
+    - It leaks facts about the case. How many passes a question took and which
+      sub-questions found nothing are things the caller may not be entitled to
+      — the same reason LEG-78's iteration cap degrades to "no answer" instead
+      of reporting that it was hit.
+    - Langfuse already owns this. LEG-83/84 give one trace per run, and LEG-88
+      is the walkthrough for debugging a wrong answer from it. Shipping
+      reasoning through the API builds that twice, the second time worse.
+
+    Still open, deliberately: enriching CitationResponse with the document
+    filename, so the UI stops rendering "Document #2" (LEG-69, decided in
+    LEG-79). That is additive — an extra field breaks no existing caller — and
+    is not what this lock forbids.
     """
 
     answer: str | None = None
