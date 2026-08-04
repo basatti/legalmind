@@ -139,9 +139,7 @@ def make_reason_node(llm: LLMProvider) -> Node:
             }
 
         if decision != DONE:
-            logger.warning(
-                "reason node replied %r, expected one of the two tokens", reply
-            )
+            logger.warning("reason node replied %r, expected one of the two tokens", reply)
 
         return {"iterations": iterations, "should_continue": False}
 

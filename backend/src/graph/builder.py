@@ -1,4 +1,4 @@
-﻿"""Wires the nodes into a runnable graph (LEG-74, LEG-76).
+"""Wires the nodes into a runnable graph (LEG-74, LEG-76).
 
 The shape the epic asks for: route -> retrieve -> reason -> answer -> cite.
 
@@ -73,4 +73,3 @@ def build_graph(llm: LLMProvider) -> RagGraph:
     builder.add_edge("cite", END)
 
     return builder.compile()
-
