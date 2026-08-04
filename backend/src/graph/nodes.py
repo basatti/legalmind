@@ -1,36 +1,83 @@
-"""The graph's five nodes, as stubs (LEG-74).
+"""The graph's five nodes (LEG-74, LEG-76).
 
-Each one is a placeholder with its real signature already fixed, so LEG-76 to
-LEG-79 can be picked up in parallel: filling in a node means editing one
-function here, not agreeing a new interface first.
+`route` is implemented. `retrieve`, `reason`, `answer` and `cite` are still
+placeholders with their real signatures already fixed, so LEG-77 to LEG-79 can
+be picked up in parallel: filling one in means editing one function here, not
+agreeing a new interface first.
 
 Every node returns a *partial* update — only the fields it changed — which
 LangGraph merges into the state. Returning `{}` means "changed nothing", which
 is what a stub does.
 
-A run of the graph as it stands therefore ends with `answer` still None. That
-is deliberate: `RagService` already treats a None answer as "no answer", so a
-half-built graph refuses to answer rather than inventing one. Nothing here can
-fail open.
+A run therefore still ends with `answer` as None, whichever way the router
+sends it. That is deliberate: `RagService` already treats a None answer as "no
+answer", so a partly-built graph refuses to answer rather than assembling one
+out of whichever nodes happen to be finished. Nothing here can fail open.
 """
 
-from typing import Any
+import logging
+from typing import Any, Protocol
 
-from graph.state import GraphState
+from graph.routing_prompt import MULTI_STEP, SINGLE_SHOT, build_routing_prompt
+from graph.state import GraphState, Route
+from services.llm import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 StateUpdate = dict[str, Any]
 """A node's partial write-back. Untyped values because LangGraph merges by key
 name; the keys must match `GraphState`'s field names."""
 
 
-def route(state: GraphState) -> StateUpdate:
-    """Decide whether this question needs one retrieval pass or several.
+class Node(Protocol):
+    """What LangGraph runs: state in, partial update out.
 
-    LEG-76 fills this in and sets `route`. Until then every question falls
-    through the linear path in `builder.py`, which is the single-shot
-    behaviour the system already has.
+    A Protocol rather than `Callable[[GraphState], StateUpdate]` because
+    LangGraph's own node type names the parameter — `def __call__(self, state:
+    ...)`. A Callable alias makes that parameter positional-only, so a factory
+    annotated with one is rejected by `add_node` even though the function it
+    returns is perfectly valid.
+
+    A node that needs collaborators — a model, a repository — is built by a
+    factory that takes them and returns one of these, rather than reaching for
+    them itself. Same reason RagService takes its collaborators in `__init__`:
+    a test supplies fakes, and nothing in here decides which provider is real.
     """
-    return {}
+
+    def __call__(self, state: GraphState) -> StateUpdate: ...
+
+
+def make_route_node(llm: LLMProvider) -> Node:
+    """Build the node that decides whether a question needs one pass or several."""
+
+    def route(state: GraphState) -> StateUpdate:
+        """Classify the question and record the decision on the state.
+
+        An unrecognised reply is not an error. It falls back to single-shot,
+        which is exactly what the system does today for every question — so a
+        model that misbehaves costs the improvement, never the existing
+        behaviour. Failing the request instead would mean a question that works
+        in production today starts returning 503 the moment routing ships.
+
+        `LLMError` is deliberately not caught: the model being unreachable is a
+        real outage, and the answer node would fail on the next call anyway.
+        `query_router` already turns it into a 503 with a message that names
+        neither host nor model.
+        """
+        reply = llm.generate(build_routing_prompt(state.question)).strip().upper()
+
+        if reply == MULTI_STEP:
+            return {"route": Route.MULTI_STEP}
+
+        if reply != SINGLE_SHOT:
+            # Worth a log line rather than silence: a model that has stopped
+            # answering in the agreed tokens sends every question down the
+            # single-shot path, which looks like the router doing nothing.
+            logger.warning("router replied %r, expected one of the two tokens", reply)
+
+        return {"route": Route.SINGLE_SHOT}
+
+    return route
 
 
 def retrieve(state: GraphState) -> StateUpdate:
