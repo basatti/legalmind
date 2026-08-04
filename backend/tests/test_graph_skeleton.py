@@ -16,7 +16,7 @@ rescoping when it should not.
 Nothing here touches a database or a real model — compiling the graph is pure.
 """
 
-from foundation.authorization import AllCases, TheseCases
+from foundation.authorization import AllCases, AuthorizedCases, TheseCases
 from graph import GraphState, build_graph
 from graph.routing_prompt import SINGLE_SHOT
 from services.llm import LLMProvider
@@ -37,11 +37,20 @@ class FakeLLM(LLMProvider):
 
 
 class FakeRetrievalService(RetrievalService):
-    """Returns no matches, so these tests exercise the graph's shape, not retrieval."""
+    """Returns no matches, so these tests exercise the graph's shape, not retrieval.
 
-    def retrieve(self, query: str, within):
-        return [] 
-    
+    Deliberately does not call `super().__init__` — no `ChunkSearcher` or
+    `EmbeddingProvider` is involved, for the same reason `FakeLLM` above exists:
+    compiling the graph requires a service, these tests do not exercise one.
+    """
+
+    def __init__(self) -> None:
+        pass
+
+    def retrieve(self, question: str, within: AuthorizedCases, top_k: int = 5) -> list:
+        return []
+
+
 def test_the_graph_has_exactly_the_five_nodes_the_epic_names() -> None:
     """LEG-16 specifies route -> retrieve -> reason -> answer -> cite.
 

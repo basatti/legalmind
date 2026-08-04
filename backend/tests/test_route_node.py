@@ -13,7 +13,7 @@ What cannot be tested here is whether a real model classifies well. No test can
 establish that; LEG-85's gold set is where that question gets measured.
 """
 
-from foundation.authorization import AllCases
+from foundation.authorization import AllCases, AuthorizedCases
 from graph import GraphState, Route, build_graph
 from graph.nodes import make_route_node
 from graph.routing_prompt import MULTI_STEP, SINGLE_SHOT, build_routing_prompt
@@ -33,6 +33,19 @@ class FakeLLM(LLMProvider):
     def generate(self, prompt: str) -> str:
         self.prompts.append(prompt)
         return self.reply
+
+
+class FakeRetrievalService(RetrievalService):
+    """Returns no matches: these tests are about which nodes a run visits, not
+    what retrieval finds. Deliberately does not call `super().__init__` — no
+    `ChunkSearcher` or `EmbeddingProvider` is involved.
+    """
+
+    def __init__(self) -> None:
+        pass
+
+    def retrieve(self, question: str, within: AuthorizedCases, top_k: int = 5) -> list:
+        return []
 
 
 def classify(reply: str, question: str = "when does notice start?") -> Route | None:

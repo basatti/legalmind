@@ -1,7 +1,7 @@
-"""The graph's five nodes (LEG-74, LEG-76).
+"""The graph's five nodes (LEG-74, LEG-76, LEG-77).
 
-`route` is implemented. `retrieve`, `reason`, `answer` and `cite` are still
-placeholders with their real signatures already fixed, so LEG-77 to LEG-79 can
+`route` and `retrieve` are implemented. `reason`, `answer` and `cite` are still
+placeholders with their real signatures already fixed, so LEG-78 and LEG-79 can
 be picked up in parallel: filling one in means editing one function here, not
 agreeing a new interface first.
 
@@ -21,7 +21,6 @@ from typing import Any, Protocol
 from graph.routing_prompt import MULTI_STEP, SINGLE_SHOT, build_routing_prompt
 from graph.state import GraphState, Route
 from services.llm import LLMProvider
-
 from services.retrieval_service import RetrievalService
 
 logger = logging.getLogger(__name__)
