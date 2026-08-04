@@ -18,9 +18,10 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from graph.nodes import answer, cite, make_route_node, reason, retrieve
+from graph.nodes import answer, cite, make_retrieve_node, make_route_node, reason
 from graph.state import GraphState, Route
 from services.llm import LLMProvider
+from services.retrieval_service import RetrievalService
 
 RagGraph = CompiledStateGraph[GraphState, Any, GraphState, GraphState]
 """The compiled graph's full type: state, context, input and output schemas.
@@ -42,18 +43,18 @@ def _after_route(state: GraphState) -> Route:
     return state.route or Route.SINGLE_SHOT
 
 
-def build_graph(llm: LLMProvider) -> RagGraph:
+def build_graph(llm: LLMProvider, retrieval_service: RetrievalService) -> RagGraph:
     """Compile the RAG graph.
 
-    Takes the model rather than reaching for one, so a test compiles the same
-    graph against a fake. Compiling is otherwise pure — no database, no
-    network, no credentials — and the model is not called until a run reaches
-    the route node.
+    Takes the model and the retrieval service rather than reaching for either,
+    so a test compiles the same graph against fakes. Compiling is otherwise
+    pure — no database, no network, no credentials — and neither is called
+    until a run reaches the node that needs it.
     """
     builder = StateGraph(GraphState)
 
     builder.add_node("route", make_route_node(llm))
-    builder.add_node("retrieve", retrieve)
+    builder.add_node("retrieve", make_retrieve_node(retrieval_service))
     builder.add_node("reason", reason)
     builder.add_node("answer", answer)
     builder.add_node("cite", cite)

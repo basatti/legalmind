@@ -18,6 +18,7 @@ from graph import GraphState, Route, build_graph
 from graph.nodes import make_route_node
 from graph.routing_prompt import MULTI_STEP, SINGLE_SHOT, build_routing_prompt
 from services.llm import LLMProvider
+from services.retrieval_service import RetrievalService
 
 ARABIC_QUESTION = "ما هي أقصى مدة لفترة التجربة في نظام العمل؟"
 
@@ -45,7 +46,7 @@ def classify(reply: str, question: str = "when does notice start?") -> Route | N
 
 def visited_nodes(reply: str) -> list[str]:
     """The nodes a full run passes through, in order, for this classification."""
-    graph = build_graph(FakeLLM(reply))
+    graph = build_graph(FakeLLM(reply), FakeRetrievalService())
     state = GraphState(question="q", authorized=AllCases())
     return [name for step in graph.stream(state) for name in step]
 

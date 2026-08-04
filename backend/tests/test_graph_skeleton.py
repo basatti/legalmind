@@ -20,6 +20,7 @@ from foundation.authorization import AllCases, TheseCases
 from graph import GraphState, build_graph
 from graph.routing_prompt import SINGLE_SHOT
 from services.llm import LLMProvider
+from services.retrieval_service import RetrievalService
 
 EXPECTED_NODES = {"route", "retrieve", "reason", "answer", "cite"}
 
@@ -35,13 +36,19 @@ class FakeLLM(LLMProvider):
         return SINGLE_SHOT
 
 
+class FakeRetrievalService(RetrievalService):
+    """Returns no matches, so these tests exercise the graph's shape, not retrieval."""
+
+    def retrieve(self, query: str, within):
+        return [] 
+    
 def test_the_graph_has_exactly_the_five_nodes_the_epic_names() -> None:
     """LEG-16 specifies route -> retrieve -> reason -> answer -> cite.
 
     Asserted by name so that renaming a node — which silently breaks the edges
     referring to it — fails here rather than at runtime.
     """
-    graph = build_graph(FakeLLM())
+    graph = build_graph(FakeLLM(), FakeRetrievalService())
 
     nodes = {name for name in graph.get_graph().nodes if not name.startswith("__")}
 
@@ -57,7 +64,7 @@ def test_a_partly_built_graph_answers_nothing() -> None:
     one at a time: a partly-wired graph declines to answer instead of
     assembling one out of whichever nodes happen to be done.
     """
-    graph = build_graph(FakeLLM())
+    graph = build_graph(FakeLLM(), FakeRetrievalService())
 
     result = graph.invoke(GraphState(question="ما هي مدة فترة التجربة؟", authorized=AllCases()))
 
@@ -74,7 +81,7 @@ def test_the_authorized_scope_survives_a_run_unchanged() -> None:
     that came back as AllCases, or as anything other than itself, would be the
     exact confusion foundation.authorization exists to make impossible.
     """
-    graph = build_graph(FakeLLM())
+    graph = build_graph(FakeLLM(), FakeRetrievalService())
 
     unrestricted = graph.invoke(GraphState(question="q", authorized=AllCases()))
     assert unrestricted["authorized"] == AllCases()

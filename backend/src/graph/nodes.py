@@ -22,6 +22,8 @@ from graph.routing_prompt import MULTI_STEP, SINGLE_SHOT, build_routing_prompt
 from graph.state import GraphState, Route
 from services.llm import LLMProvider
 
+from services.retrieval_service import RetrievalService
+
 logger = logging.getLogger(__name__)
 
 StateUpdate = dict[str, Any]
@@ -80,14 +82,40 @@ def make_route_node(llm: LLMProvider) -> Node:
     return route
 
 
-def retrieve(state: GraphState) -> StateUpdate:
-    """Fetch passages for the question, inside `state.authorized` only.
+def make_retrieve_node(retrieval_service: RetrievalService) -> Node:
+    """Build the node that fetches passages for the question.
 
-    LEG-77 fills this in by calling `RetrievalService.retrieve(within=...)`.
-    It must pass `state.authorized` straight through: the scope arrives
-    already resolved, and filtering happens inside the query, before ranking.
+    Takes the service rather than reaching for one, for the same reason
+    `make_route_node` takes the model: a test supplies a fake, and nothing in
+    here decides which retrieval backend is real.
     """
-    return {}
+
+    def retrieve(state: GraphState) -> StateUpdate:
+        """Fetch passages for the current query, inside `state.authorized` only.
+
+        Passes `state.authorized` straight through to
+        `RetrievalService.retrieve(within=...)`: the scope arrived already
+        resolved at the front door, and filtering happens inside the query,
+        before ranking. Never recomputed here — see the module docstring on
+        `GraphState`.
+
+        The query is the latest sub-question when `reason` has already run —
+        `reasoning` is empty on the single-shot path and on the first pass of
+        a multi-step one, so `state.question` covers both until `reason`
+        starts appending to it. This is what lets retrieval work from a
+        sub-question rather than the compound original once LEG-78 fills
+        `reason` in, without this node needing to know how that decomposition
+        happened.
+
+        Matches accumulate rather than replace: a multi-step question can
+        loop back here more than once, and each pass adds to what earlier
+        passes found rather than discarding it.
+        """
+        query = state.reasoning[-1] if state.reasoning else state.question
+        found = retrieval_service.retrieve(query, within=state.authorized)
+        return {"matches": [*state.matches, *found]}
+
+    return retrieve
 
 
 def reason(state: GraphState) -> StateUpdate:
