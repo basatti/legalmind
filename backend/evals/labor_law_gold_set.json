@@ -1,0 +1,141 @@
+{
+  "corpus": "hrsd_labor_law",
+  "chunker": { "window_size": 200, "overlap": 40 },
+  "items": [
+    {
+      "id": "annual-leave-base-entitlement",
+      "lang": "ar",
+      "question": "أنا موظف جديد، كم يوم إجازة مدفوعة الأجر أستحق في السنة؟",
+      "expected_section": "المادة التاسعة بعد المائة",
+      "expected_answer_contains": ["واحد وعشرين", "21"],
+      "chunk_index_hint": 114,
+      "notes": "Targets the base entitlement, not the 30-day tier that applies only after five continuous years. An answer of 30 with no five-year condition is wrong. Mirrored in English by annual-leave-base-entitlement-en."
+    },
+    {
+      "id": "sick-leave-full-pay-tier",
+      "lang": "ar",
+      "question": "مرضت وأحتاج إلى انقطاع عن العمل — كم يوماً أستحقه براتب كامل؟",
+      "expected_section": "المادة السابعة عشرة بعد المائة",
+      "expected_answer_contains": ["ثلاثين", "30"],
+      "chunk_index_hint": 122,
+      "notes": "Same article as sick-leave-three-quarters-tier, different fact. Caution: the article's unpaid third tier is also 30 days, so a wrong answer naming that tier would still match. The word 'كامل' in the question is what forces the right tier; review this item's failures by hand."
+    },
+    {
+      "id": "sick-leave-three-quarters-tier",
+      "lang": "ar",
+      "question": "انتهت أول ثلاثين يوماً من انقطاعي بسبب المرض، كم نسبة الراتب بعد ذلك؟",
+      "expected_section": "المادة السابعة عشرة بعد المائة",
+      "expected_answer_contains": ["ثلاثة أرباع", "75"],
+      "chunk_index_hint": 122,
+      "notes": "Cleanest of the three sick-leave facts: no other tier in the article is three-quarters, so there is no collision."
+    },
+    {
+      "id": "probation-max-duration",
+      "lang": "ar",
+      "question": "صاحب العمل يريد وضعي تحت التجربة — ما أطول مدة يسمح بها النظام؟",
+      "expected_section": "المادة الثالثة والخمسون",
+      "expected_answer_contains": ["مائة وثمانين", "180"],
+      "chunk_index_hint": 56,
+      "notes": "The article writes the number as (مائة وثمانين); a model may normalise it to 180. Both accepted. This is the same fact the existing smoke test checks, so a failure here also invalidates scripts/smoke_test_rag.py."
+    },
+    {
+      "id": "weekly-rest-minimum-hours",
+      "lang": "ar",
+      "question": "كم ساعة على الأقل يجب أن تكون راحتي الأسبوعية؟",
+      "expected_section": "المادة الرابعة بعد المائة",
+      "expected_answer_contains": ["أربع وعشرين", "24"],
+      "chunk_index_hint": 109,
+      "notes": "Asks for the minimum duration, not which day. The article also names Friday as the default rest day — an answer that says 'Friday' but omits 24 hours has not answered the question."
+    },
+    {
+      "id": "working-hours-daily-max",
+      "lang": "ar",
+      "question": "ما الحد الأقصى لساعات عملي في اليوم الواحد؟",
+      "expected_section": "المادة الثامنة والتسعون",
+      "expected_answer_contains": ["ثماني ساعات", "8 ساعات"],
+      "chunk_index_hint": 103,
+      "notes": "Do not add a bare '8' here: the same article contains 48 (the weekly cap), and '8' is a substring of '48', so a bare '8' would match a wrong answer. Mirrored in English by working-hours-daily-max-en."
+    },
+    {
+      "id": "ramadan-working-hours",
+      "lang": "ar",
+      "question": "هل تتغير ساعات دوامي في رمضان؟ وكم تصبح؟",
+      "expected_section": "المادة الثامنة والتسعون",
+      "expected_answer_contains": ["ست ساعات", "6 ساعات"],
+      "chunk_index_hint": 103,
+      "notes": "Same article as working-hours-daily-max, different fact — the Ramadan reduction for Muslim workers. Together these two items check that retrieval finding the article is not confused with the model reading the right sentence inside it."
+    },
+    {
+      "id": "overtime-premium-rate",
+      "lang": "ar",
+      "question": "اشتغلت ساعات زيادة عن دوامي، كيف تُحسب أجرة الساعات الإضافية؟",
+      "expected_section": "المادة السابعة بعد المائة",
+      "expected_answer_contains": ["50%", "خمسين", "50"],
+      "chunk_index_hint": 112,
+      "notes": "The article states hour-wage plus 50% of basic wage. A model answering '150% من أجر الساعة' is stating the same fact and still matches on '50' — intentional."
+    },
+    {
+      "id": "end-of-service-award-first-five-years",
+      "lang": "ar",
+      "question": "استقلت بعد ثلاث سنوات، كيف تُحسب مكافأة نهاية الخدمة عن هذه السنوات؟",
+      "expected_section": "المادة الرابعة والثمانون",
+      "expected_answer_contains": ["نصف شهر", "نصف أجر شهر", "نصف راتب"],
+      "chunk_index_hint": 89,
+      "notes": "Targets the accrual rate for the first five years (half a month per year), not the one-month rate that applies after. Note this article gives the rate only — the separate reduction for resignation lives in المادة الخامسة والثمانون, covered by resignation-award-fraction."
+    },
+    {
+      "id": "resignation-award-fraction",
+      "lang": "ar",
+      "question": "إذا استقلت بعد ثلاث سنوات خدمة، هل آخذ المكافأة كاملة؟",
+      "expected_section": "المادة الخامسة والثمانون",
+      "expected_answer_contains": ["ثلث"],
+      "chunk_index_hint": 90,
+      "notes": "Deliberately paired with end-of-service-award-first-five-years: same scenario, three years of service, but the correct source article is a different one. A system that retrieves المادة الرابعة والثمانون for both has not understood the question."
+    },
+    {
+      "id": "minimum-working-age",
+      "lang": "ar",
+      "question": "ابني عمره أربعة عشر عاماً، هل يمكن توظيفه؟",
+      "expected_section": "المادة الثانية والستون بعد المائة",
+      "expected_answer_contains": ["الخامسة عشرة", "15"],
+      "chunk_index_hint": 168,
+      "notes": "Phrased as a real situation rather than 'what is the minimum age'. The article also carries a 13-15 light-work exception, so a thorough correct answer may mention both; matching on 15 accepts either."
+    },
+    {
+      "id": "maternity-leave-duration",
+      "lang": "ar",
+      "question": "زوجتي حامل وتعمل، كم مدة إجازة الوضع المدفوعة؟",
+      "expected_section": "المادة الحادية والخمسون بعد المائة",
+      "expected_answer_contains": ["اثني عشر", "12"],
+      "chunk_index_hint": 157,
+      "notes": "Twelve weeks at full pay. The article also mentions six mandatory post-birth weeks and optional unpaid extensions; the question asks only for the paid duration. Mirrored in English by maternity-leave-duration-en."
+    },
+    {
+      "id": "annual-leave-base-entitlement-en",
+      "lang": "en",
+      "question": "I just started a new job in Saudi Arabia. How many paid vacation days do I get per year?",
+      "expected_section": "المادة التاسعة بعد المائة",
+      "expected_answer_contains": ["21", "twenty-one"],
+      "chunk_index_hint": 114,
+      "notes": "English twin of annual-leave-base-entitlement. The corpus is entirely Arabic, so this only passes if the embedding model matches across languages. If the Arabic twin passes and this fails, the gap is cross-lingual retrieval, not the law or the chunking."
+    },
+    {
+      "id": "working-hours-daily-max-en",
+      "lang": "en",
+      "question": "What is the maximum number of hours I can be required to work in a single day?",
+      "expected_section": "المادة الثامنة والتسعون",
+      "expected_answer_contains": ["8 hours", "eight hours"],
+      "chunk_index_hint": 103,
+      "notes": "English twin of working-hours-daily-max. Same substring trap as the Arabic item — '8' alone would match the article's 48-hour weekly cap, so the unit is required in the match."
+    },
+    {
+      "id": "maternity-leave-duration-en",
+      "lang": "en",
+      "question": "How long is paid maternity leave for a working woman?",
+      "expected_section": "المادة الحادية والخمسون بعد المائة",
+      "expected_answer_contains": ["12 weeks", "twelve weeks"],
+      "chunk_index_hint": 157,
+      "notes": "English twin of maternity-leave-duration. Chosen because the answer is a plain number, so a failure is unambiguous evidence about language handling rather than about legal nuance."
+    }
+  ]
+}
