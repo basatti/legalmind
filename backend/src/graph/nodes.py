@@ -18,6 +18,7 @@ out of whichever nodes happen to be finished. Nothing here can fail open.
 import logging
 from typing import Any, Protocol
 
+from graph.reasoning_prompt import CONTINUE, DONE, build_reasoning_prompt
 from graph.routing_prompt import MULTI_STEP, SINGLE_SHOT, build_routing_prompt
 from graph.state import GraphState, Route
 from services.llm import LLMProvider
@@ -90,16 +91,61 @@ def retrieve(state: GraphState) -> StateUpdate:
     return {}
 
 
-def reason(state: GraphState) -> StateUpdate:
-    """Decompose a multi-step question and decide whether to retrieve again.
+MAX_ITERATIONS = 3
+"""Hard cap on reason -> retrieve cycles for one question.
 
-    LEG-78 fills this in, together with the loop guard that caps
-    `state.iterations`. Hitting the cap must degrade to a clean "no answer",
-    never an error — an exception here would tell a caller that a question was
-    expensive to answer, which is a fact about the case they may not be
-    entitled to.
+An unbounded loop keeps calling the company gateway - real API quota, real
+money, and a request that never returns - so the cap is a plain module
+constant, not something a node works out from context. Hitting it is not an
+error: the run falls through to answer with whatever was retrieved, which is
+the same "no answer" outcome AnswerService already produces when passages
+don't support a reply. A caller never learns a question was expensive to
+answer, which is a fact about the case they may not be entitled to.
+"""
+
+
+def make_reason_node(llm: LLMProvider) -> Node:
+    """Build the node that decomposes a multi-step question and decides
+    whether another retrieval pass is needed.
     """
-    return {}
+
+    def reason(state: GraphState) -> StateUpdate:
+        """Decompose a multi-step question and decide whether to retrieve again.
+
+        Checked before calling the model at all: a run that already hit the
+        cap gets no further gateway call, not just no further loop.
+        """
+        iterations = state.iterations + 1
+
+        if iterations > MAX_ITERATIONS:
+            logger.warning(
+                "reason node hit max iterations (%d), falling through to answer",
+                MAX_ITERATIONS,
+            )
+            return {"iterations": iterations, "should_continue": False}
+
+        summaries = [match.chunk.text for match in state.matches]
+        prompt = build_reasoning_prompt(state.question, state.reasoning, summaries)
+        reply = llm.generate(prompt).strip()
+        lines = reply.splitlines()
+        decision = lines[0].strip().upper() if lines else ""
+
+        if decision == CONTINUE:
+            sub_question = lines[1].strip() if len(lines) > 1 else state.question
+            return {
+                "iterations": iterations,
+                "reasoning": [*state.reasoning, sub_question],
+                "should_continue": True,
+            }
+
+        if decision != DONE:
+            logger.warning(
+                "reason node replied %r, expected one of the two tokens", reply
+            )
+
+        return {"iterations": iterations, "should_continue": False}
+
+    return reason
 
 
 def answer(state: GraphState) -> StateUpdate:
