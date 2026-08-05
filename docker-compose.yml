@@ -16,10 +16,30 @@ services:
     restart: unless-stopped
     depends_on:
       - db
+    env_file:
+      - ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
     ports:
       - "8000:8000"
+
+  # Drains the ingestion queue. Its own process on purpose: parsing and
+  # embedding a large PDF takes far longer than an HTTP request should run for,
+  # so uploads only enqueue a job and this picks it up independently. Several
+  # replicas are safe — the claim uses FOR UPDATE SKIP LOCKED.
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
+    # src is not on the path in the image; the app service gets there via
+    # uvicorn's --app-dir, so the worker runs from src instead.
+    working_dir: /app/src
+    command: ["uv", "run", "python", "-m", "worker_main"]
 
 volumes:
   postgres_data:

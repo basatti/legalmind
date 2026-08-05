@@ -1,0 +1,18 @@
+# The image builds its own virtualenv with `uv sync`. Copying the host one over
+# it replaces Linux binaries with the developer's platform-specific build.
+.venv
+
+# Secrets belong in the environment, not baked into an image layer.
+.env
+.env.test
+
+# Local caches and developer artefacts — nothing the image needs.
+.mypy_cache
+.pytest_cache
+.ruff_cache
+__pycache__
+.coverage
+htmlcov
+
+# Uploaded files live in a volume, not in the image.
+storage
