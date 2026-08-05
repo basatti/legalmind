@@ -38,6 +38,11 @@ cd frontend
 npm install
 ```
 
+## Running the app
+
+See [`docs/running-locally.md`](docs/running-locally.md) — the three terminals,
+the URLs, the login, and what to check when something does not work.
+
 ## Running checks
 
 From the repo root:

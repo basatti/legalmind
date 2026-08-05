@@ -1,0 +1,118 @@
+# Running LegalMind locally
+
+Everything needed to get the app up and log in. For dependency setup and the
+lint/type/test commands, see the root `README.md`.
+
+## Before you start
+
+- **Postgres must be running.** It runs natively on this machine — Docker
+  Desktop is not required just to start the app.
+- Dependencies installed once: `cd backend && uv sync --extra dev`, and
+  `cd frontend && npm install`.
+- `backend/.env` must exist. Copy `backend/.env.example` and fill it in if it
+  does not.
+
+## Three terminals
+
+**1. Backend — FastAPI on port 8000**
+
+```bash
+cd backend
+uv run uvicorn main:app --app-dir src --reload
+```
+
+`--reload` restarts on every save. `--app-dir src` is what puts `src` on the
+Python path.
+
+**2. Frontend — Next.js on port 3000**
+
+```bash
+cd frontend
+npm run dev
+```
+
+Next.js, not plain React, so it is `npm run dev` and not `npm start`.
+
+**3. Worker — only needed if uploads should become searchable**
+
+```bash
+cd backend/src
+uv run python -m worker_main
+```
+
+Run from `src`, because `python -m worker_main` has no equivalent of uvicorn's
+`--app-dir` flag.
+
+Without this terminal, uploads still succeed — the document is stored and
+visible — but its ingestion job sits at `PENDING` for ever and nothing about
+its contents is searchable.
+
+## Where things live
+
+| what | address |
+|---|---|
+| the app | <http://localhost:3000> |
+| the API | <http://localhost:8000> |
+| Swagger UI (interactive, "Try it out") | <http://localhost:8000/docs> |
+| ReDoc (read-only, easier to skim) | <http://localhost:8000/redoc> |
+| the raw OpenAPI spec | <http://localhost:8000/openapi.json> |
+
+Swagger UI and ReDoc are two viewers of the same spec, which FastAPI generates
+from the route signatures and Pydantic schemas. Neither is written by hand.
+
+## Logging in
+
+The first admin is created by migration `dd761b9ccc7b`, not by hand:
+
+- **`admin@legalmind.com`** / **`ChangeMe123!`**
+
+It is flagged `must_change_password`, and while that flag is set the backend
+refuses *every other endpoint* with `403 Password change required` — including
+creating users. Change the password first, at
+<http://localhost:3000/change-password>.
+
+New passwords need at least 8 characters, at least one letter and at least one
+digit.
+
+## The three env files
+
+| file | committed | purpose |
+|---|---|---|
+| `backend/.env` | no | real local config: dev `DATABASE_URL`, company gateway URL, key, model names |
+| `backend/.env.example` | yes | template with the same keys and placeholder values |
+| `backend/.env.test` | yes | `DATABASE_URL` for `legalmind_test`; force-loaded by `conftest.py` so tests can never hit the dev database |
+
+The frontend needs no env file — `lib/api-client.ts` defaults to
+`http://localhost:8000`. Set `NEXT_PUBLIC_API_URL` only to point somewhere else.
+
+## When something is wrong
+
+**Any documents page returns 500, or a query mentions a column that does not
+exist.** The dev database is behind the migrations:
+
+```bash
+cd backend
+uv run alembic upgrade head
+```
+
+**Login returns 422 rather than 401.** The email failed validation before the
+password was ever checked. Reserved TLDs such as `.local` are rejected by
+`EmailStr`.
+
+**Every API call returns 403 "Password change required".** The logged-in user
+still has `must_change_password` set. Change the password; nothing else works
+until then.
+
+**The frontend renders something stale, or throws an odd module error.** Delete
+`frontend/.next` and restart `npm run dev`. Not worth debugging.
+
+**An upload never becomes searchable.** The worker is not running — see
+terminal 3.
+
+## Never do this
+
+Do not run `pytest` from the repo root. It must run from `backend/`. The test
+fixtures call `drop_all()`, and in July a relative path in `conftest.py` meant
+`DATABASE_URL` fell through to the real dev database, which was destroyed while
+176 tests reported success. Both a path fix and a guard requiring `_test` in the
+database name are in place now, but the habit is still worth keeping.
