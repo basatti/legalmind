@@ -13,6 +13,7 @@ from foundation.schemas import QueryAskRequest, QueryAskResponse
 from repositories.assignment_case_reader import AssignmentCaseReader
 from repositories.assignment_repository import AssignmentRepository
 from repositories.document_chunk_repository import DocumentChunkRepository
+from repositories.document_repository import DocumentRepository
 from routers.auth_router import require_permission
 from services.answer_service import AnswerService
 from services.company_llm import CompanyLLMProvider
@@ -63,6 +64,8 @@ def get_rag_service(
             embedding_provider=embedding_provider,
         ),
         answers=AnswerService(llm),
+        documents=DocumentRepository(session),
+        llm=llm,
     )
 
 
@@ -86,3 +89,4 @@ def ask(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="The answering service is temporarily unavailable",
         ) from exc
+    

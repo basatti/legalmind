@@ -77,3 +77,17 @@ class GraphState:
     stays folded into the answer node, this simply mirrors `answer.citations`;
     if it becomes real (enriching citations with document filenames, closing
     the "Document #2" gap from LEG-69), it holds the enriched set."""
+
+    should_continue: bool = False
+    """Set by the reason node: True sends the run back to retrieve for
+    another pass, False lets it fall through to answer. LEG-78. Read once by
+    the graph's conditional edge after reason, never by reason itself on a
+    later call - the node decides fresh each time from state.iterations and
+    what it just read, not from what it decided last time."""
+
+    should_continue: bool = False
+    """Set by the reason node: True sends the run back to retrieve for
+    another pass, False lets it fall through to answer. LEG-78. Read once by
+    the graph's conditional edge after reason, never by reason itself on a
+    later call - the node decides fresh each time from state.iterations and
+    what it just read, not from what it decided last time."""
