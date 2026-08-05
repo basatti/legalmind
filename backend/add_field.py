@@ -1,4 +1,4 @@
-﻿import pathlib
+import pathlib
 
 path = pathlib.Path("src/graph/state.py")
 text = path.read_text(encoding="utf-8")

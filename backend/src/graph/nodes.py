@@ -92,10 +92,7 @@ def make_reason_node(llm: LLMProvider) -> Node:
                 "should_continue": False,
             }
 
-        summaries = [
-            match.chunk.text
-            for match in state.matches
-        ]
+        summaries = [match.chunk.text for match in state.matches]
 
         prompt = build_reasoning_prompt(
             state.question,
@@ -109,11 +106,7 @@ def make_reason_node(llm: LLMProvider) -> Node:
         decision = lines[0].strip().upper() if lines else ""
 
         if decision == CONTINUE:
-            sub_question = (
-                lines[1].strip()
-                if len(lines) > 1
-                else state.question
-            )
+            sub_question = lines[1].strip() if len(lines) > 1 else state.question
 
             return {
                 "iterations": iterations,
