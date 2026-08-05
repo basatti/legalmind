@@ -131,7 +131,9 @@ def test_an_attorney_assigned_to_the_case_gets_an_answer(client, session, fake_p
     print(body)
     assert response.status_code == 200
     assert body["answer"] == STUB_REPLY
-    assert body["citations"] == [{"document_id": chunk.document_id, "page_number": 3}]
+    assert body["citations"] == [
+        {"document_id": chunk.document_id, "document_name": "contract.pdf", "page_number": 3}
+    ]
 
 
 def test_an_attorney_gets_nothing_from_a_case_they_are_not_assigned_to(
@@ -164,7 +166,9 @@ def test_a_paralegal_assigned_to_the_case_gets_an_answer(client, session, fake_p
     print(body)
     assert response.status_code == 200
     assert body["answer"] == STUB_REPLY
-    assert body["citations"] == [{"document_id": chunk.document_id, "page_number": 3}]
+    assert body["citations"] == [
+        {"document_id": chunk.document_id, "document_name": "contract.pdf", "page_number": 3}
+    ]
 
 
 def test_a_paralegal_with_no_assigned_cases_gets_a_clean_no_answer(client, session):

@@ -215,6 +215,7 @@ class CitationResponse(BaseModel):
     """Where one part of an answer came from, in terms a person can go and check."""
 
     document_id: int
+    document_name: str
     page_number: int
 
 

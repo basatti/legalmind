@@ -11,6 +11,7 @@ turn them into a grounded answer, and hand back the answer with its citations.
 from foundation.authorization import CaseReader, TheseCases
 from foundation.models import DocumentChunk, User
 from foundation.schemas import CitationResponse, QueryAskResponse
+from repositories.document_repository import DocumentRepository
 from services.answer_service import AnswerService
 from services.retrieval_service import RetrievalService, RetrievedMatch
 
@@ -21,10 +22,12 @@ class RagService:
         case_reader: CaseReader,
         retrieval: RetrievalService,
         answers: AnswerService,
+        documents: DocumentRepository,
     ) -> None:
         self.case_reader = case_reader
         self.retrieval = retrieval
         self.answers = answers
+        self.documents = documents
 
     def ask(self, question: str, user: User) -> QueryAskResponse:
         authorized = self.case_reader.authorized_cases(user)
@@ -45,11 +48,22 @@ class RagService:
             citations=[
                 CitationResponse(
                     document_id=citation.document_id,
+                    document_name=self._filename(citation.document_id),
                     page_number=citation.page_number,
                 )
                 for citation in answer.citations
             ],
         )
+
+    def _filename(self, document_id: int) -> str:
+        """Look up the document's stored filename for a citation.
+
+        A plain lookup, not an LLM call — the model already told us which
+        document and page (LEG-79); this just resolves that id to something
+        a lawyer recognises instead of "Document #2" (LEG-69).
+        """
+        document = self.documents.get_by_id(document_id)
+        return document.filename if document else "Unknown document"
 
     @staticmethod
     def _passages(matches: list[RetrievedMatch]) -> list[DocumentChunk]:
