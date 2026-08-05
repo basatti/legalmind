@@ -8,8 +8,6 @@ Sequence: resolve what the user may see, run the graph, turn retrieved
 passages into a grounded answer, and hand back the answer with its citations.
 """
 
-from typing import Optional
-
 from foundation.authorization import CaseReader, TheseCases
 from foundation.models import DocumentChunk, User
 from foundation.schemas import CitationResponse, QueryAskResponse
@@ -28,7 +26,7 @@ class RagService:
         retrieval: RetrievalService,
         answers: AnswerService,
         documents: DocumentRepository,
-        llm: Optional[LLMProvider] = None,
+        llm: LLMProvider | None = None,
     ) -> None:
         self.case_reader = case_reader
         self.retrieval = retrieval
@@ -105,4 +103,3 @@ class RagService:
                 )
 
         return list(unique.values())
-    
