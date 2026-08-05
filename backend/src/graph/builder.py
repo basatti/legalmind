@@ -15,14 +15,13 @@ from graph.nodes import (
     cite,
     make_answer_node,
     make_reason_node,
-    make_route_node,
     make_retrieve_node,
+    make_route_node,
 )
 from graph.state import GraphState, Route
 from services.answer_service import AnswerService
 from services.llm import LLMProvider
 from services.retrieval_service import RetrievalService
-
 
 RagGraph = CompiledStateGraph[GraphState, Any, GraphState, GraphState]
 

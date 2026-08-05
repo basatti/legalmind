@@ -89,4 +89,3 @@ def ask(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="The answering service is temporarily unavailable",
         ) from exc
-    
