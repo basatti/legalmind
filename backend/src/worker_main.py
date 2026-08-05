@@ -47,6 +47,14 @@ def run_forever() -> None:
         try:
             pipeline = ParseAndChunkPipeline(session, embedding_provider=embedding_provider)
             worker = IngestionWorker(IngestionJobRepository(session), pipeline)
+
+            # Before claiming, put back anything a dead worker left RUNNING —
+            # nothing else ever will, since only PENDING jobs are claimed. Safe
+            # to run from every worker at once: the sweep skips locked rows.
+            reclaimed = worker.reclaim_stale()
+            if reclaimed:
+                logger.warning("reclaimed %s job(s) abandoned by a dead worker", reclaimed)
+
             did_work = worker.run_once()
         finally:
             session.close()

@@ -5,7 +5,7 @@ table in this project is accessed — services call these methods and never
 write queries themselves.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlmodel import Session, col, select
 
@@ -53,6 +53,27 @@ class IngestionJobRepository:
         self.session.commit()
         self.session.refresh(job)
         return job
+
+    def find_stale(self, older_than: timedelta) -> list[IngestionJob]:
+        """Jobs left RUNNING for longer than `older_than`, oldest first.
+
+        A worker that dies mid-job — killed process, lost machine — leaves its
+        claim behind, and nothing else ever picks a RUNNING job up. These are
+        those jobs.
+
+        This only reports them; what happens next is the worker's decision,
+        the same way an ordinary failure is. `older_than` must be longer than
+        the slowest document could legitimately take, or a job still being
+        worked on is declared dead while its worker is mid-embed.
+        """
+        statement = (
+            select(IngestionJob)
+            .where(IngestionJob.status == IngestionStatus.RUNNING)
+            .where(col(IngestionJob.updated_at) < datetime.now() - older_than)
+            .order_by(col(IngestionJob.id))
+            .with_for_update(skip_locked=True)
+        )
+        return list(self.session.exec(statement).all())
 
     def mark_done(self, job: IngestionJob) -> IngestionJob:
         job.status = IngestionStatus.DONE

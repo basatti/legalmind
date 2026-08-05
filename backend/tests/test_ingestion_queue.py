@@ -1,5 +1,7 @@
 """Tests for the background ingestion queue (LEG-59)."""
 
+from datetime import datetime, timedelta
+
 from foundation.hashing import hash_password
 from foundation.models import Case, Document, IngestionStatus, Role, User
 from repositories.ingestion_job_repository import IngestionJobRepository
@@ -159,3 +161,54 @@ def test_a_failed_job_does_not_block_later_jobs(session):
     following = repo.claim_next()
     assert following is not None
     assert following.id == second.id
+
+
+# --- abandoned jobs ----------------------------------------------------------
+
+
+def age(session, job, by: timedelta) -> None:
+    """Backdate a job so staleness can be tested without waiting for it."""
+    job.updated_at = datetime.now() - by
+    session.add(job)
+    session.commit()
+
+
+def test_find_stale_finds_a_job_left_running(session):
+    """A worker that dies mid-job leaves its claim behind; only PENDING jobs
+    are ever claimed, so nothing else would find this one again."""
+    document = make_document(session)
+    repo = IngestionJobRepository(session)
+    repo.enqueue(document.id)
+    claimed = repo.claim_next()
+    age(session, claimed, timedelta(hours=2))
+
+    stale = repo.find_stale(timedelta(minutes=30))
+    assert [job.id for job in stale] == [claimed.id]
+
+
+def test_find_stale_leaves_a_job_that_is_still_being_worked_on(session):
+    """The dangerous direction: reclaiming a live job means two workers on one
+    document."""
+    document = make_document(session)
+    repo = IngestionJobRepository(session)
+    repo.enqueue(document.id)
+    repo.claim_next()
+
+    assert repo.find_stale(timedelta(minutes=30)) == []
+
+
+def test_find_stale_ignores_jobs_that_are_not_running(session):
+    """Age alone is not the test — a finished job is not abandoned, however old."""
+    document = make_document(session)
+    repo = IngestionJobRepository(session)
+
+    # Set the end states directly rather than via claim_next, which would hand
+    # back whichever job is oldest and quietly reuse one row for two variables.
+    pending = repo.enqueue(document.id)
+    done = repo.mark_done(repo.enqueue(document.id))
+    failed = repo.mark_failed(repo.enqueue(document.id), "unreadable")
+
+    for job in (pending, done, failed):
+        age(session, job, timedelta(days=1))
+
+    assert repo.find_stale(timedelta(minutes=30)) == []

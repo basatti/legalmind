@@ -5,6 +5,8 @@ under test here is the queue mechanics — claiming, retrying, giving up — and
 real parser would only make these tests slower and less precise.
 """
 
+from datetime import datetime, timedelta
+
 from foundation.hashing import hash_password
 from foundation.models import Case, Document, IngestionStatus, Role, User
 from repositories.ingestion_job_repository import IngestionJobRepository
@@ -212,3 +214,82 @@ def test_drain_terminates_when_a_job_keeps_failing(session):
 
     handled = IngestionWorker(jobs, FailingPipeline(), max_attempts=3).drain()
     assert handled == 3
+
+
+# --- workers that die mid-job ------------------------------------------------
+
+
+def abandon(session, jobs, job) -> None:
+    """Simulate a worker dying mid-job: the claim is made, then nothing.
+
+    Backdating updated_at stands in for the passage of time, so the test does
+    not have to wait for a real timeout.
+    """
+    jobs.claim_next()
+    job.updated_at = datetime.now() - timedelta(hours=2)
+    session.add(job)
+    session.commit()
+
+
+def test_reclaim_stale_puts_an_abandoned_job_back_on_the_queue(session):
+    document = make_document(session)
+    jobs = IngestionJobRepository(session)
+    job = jobs.enqueue(document.id)
+    abandon(session, jobs, job)
+
+    worker = IngestionWorker(jobs, SucceedingPipeline())
+    assert worker.reclaim_stale(timedelta(minutes=30)) == 1
+
+    session.refresh(job)
+    assert job.status is IngestionStatus.PENDING
+    assert job.attempts == 1
+    assert job.last_error is not None
+    assert job.last_error.startswith("StaleJobError:")
+
+
+def test_a_reclaimed_job_is_actually_processed(session):
+    """The point of reclaiming: the document ends up ingested, not just requeued."""
+    document = make_document(session)
+    jobs = IngestionJobRepository(session)
+    job = jobs.enqueue(document.id)
+    abandon(session, jobs, job)
+
+    pipeline = SucceedingPipeline()
+    worker = IngestionWorker(jobs, pipeline)
+    worker.reclaim_stale(timedelta(minutes=30))
+
+    assert worker.run_once() is True
+    assert pipeline.seen == [document.id]
+    session.refresh(job)
+    assert job.status is IngestionStatus.DONE
+
+
+def test_reclaim_stale_leaves_a_job_that_is_still_running(session):
+    """Reclaiming a live job would put two workers on one document — the one
+    failure this timeout exists to avoid."""
+    document = make_document(session)
+    jobs = IngestionJobRepository(session)
+    jobs.enqueue(document.id)
+    jobs.claim_next()
+
+    worker = IngestionWorker(jobs, SucceedingPipeline())
+    assert worker.reclaim_stale(timedelta(minutes=30)) == 0
+
+
+def test_a_job_that_keeps_killing_the_worker_eventually_fails(session):
+    """Reclaim goes through the same attempts limit as an ordinary failure, so
+    a document that crashes the worker cannot resurrect forever."""
+    document = make_document(session)
+    jobs = IngestionJobRepository(session)
+    job = jobs.enqueue(document.id)
+    worker = IngestionWorker(jobs, SucceedingPipeline(), max_attempts=2)
+
+    abandon(session, jobs, job)
+    worker.reclaim_stale(timedelta(minutes=30))
+    session.refresh(job)
+    assert (job.status, job.attempts) == (IngestionStatus.PENDING, 1)
+
+    abandon(session, jobs, job)
+    worker.reclaim_stale(timedelta(minutes=30))
+    session.refresh(job)
+    assert (job.status, job.attempts) == (IngestionStatus.FAILED, 2)

@@ -12,6 +12,7 @@ tested without a real document, and the pipeline can be tested without a queue.
 """
 
 import logging
+from datetime import timedelta
 from typing import Protocol
 
 from foundation.models import IngestionJob
@@ -20,6 +21,20 @@ from repositories.ingestion_job_repository import IngestionJobRepository
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_ATTEMPTS = 3
+
+DEFAULT_STALE_AFTER = timedelta(minutes=30)
+"""How long a job may sit RUNNING before its worker is presumed dead.
+
+Deliberately far longer than any document should take. The two mistakes are not
+symmetric: too long and a genuinely crashed job waits a while for its retry;
+too short and a job is reclaimed while its worker is still embedding, so two
+workers process one document. The second is the one worth avoiding, so this
+errs high — and it should be lowered only against measured processing times.
+"""
+
+
+class StaleJobError(Exception):
+    """A job was left RUNNING by a worker that never came back."""
 
 
 class Pipeline(Protocol):
@@ -69,6 +84,26 @@ class IngestionWorker:
         self.jobs.mark_done(job)
         logger.info("ingested document %s into %s chunks", job.document_id, stored)
         return True
+
+    def reclaim_stale(self, older_than: timedelta = DEFAULT_STALE_AFTER) -> int:
+        """Put jobs abandoned by a dead worker back on the queue.
+
+        Only PENDING jobs are ever claimed, so a worker that dies mid-job leaves
+        its claim behind and nothing picks it up again. This is the sweep that
+        finds those.
+
+        Treated as an ordinary failure rather than a special case, so it goes
+        through the same attempts limit: a document that genuinely kills the
+        worker gets reclaimed at most a couple of times and then fails for good,
+        instead of resurrecting forever. Returns how many were reclaimed.
+        """
+        stale = self.jobs.find_stale(older_than)
+        for job in stale:
+            self._handle_failure(
+                job,
+                StaleJobError(f"no progress for over {older_than}; worker presumed dead"),
+            )
+        return len(stale)
 
     def drain(self) -> int:
         """Process jobs until the queue is empty. Returns how many were handled.
