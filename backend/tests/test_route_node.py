@@ -58,8 +58,13 @@ def classify(reply: str, question: str = "when does notice start?") -> Route | N
 
 
 def visited_nodes(reply: str) -> list[str]:
-    """The nodes a full run passes through, in order, for this classification."""
-    graph = build_graph(FakeLLM(reply), FakeRetrievalService())
+    """The nodes a full run passes through, in order, for this classification.
+
+    multi_step is forced on: these tests are about what the router's decision
+    does to the path, which only exists as a question when both destinations
+    are reachable. The switch itself is covered in test_multi_step_flag.py.
+    """
+    graph = build_graph(FakeLLM(reply), FakeRetrievalService(), multi_step=True)
     state = GraphState(question="q", authorized=AllCases())
     return [name for step in graph.stream(state) for name in step]
 

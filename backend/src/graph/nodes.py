@@ -29,11 +29,21 @@ class Node(Protocol):
     def __call__(self, state: GraphState) -> StateUpdate: ...
 
 
-def make_route_node(llm: LLMProvider) -> Node:
-    """Build the node that decides whether a question needs one pass or several."""
+def make_route_node(llm: LLMProvider, multi_step: bool = True) -> Node:
+    """Build the node that decides whether a question needs one pass or several.
+
+    With `multi_step` False the classification is skipped outright rather than
+    made and then ignored: there is no decision to take if only one
+    destination is reachable, and asking anyway would spend a model call per
+    question to learn something unusable. See `graph.builder.multi_step_enabled`
+    for why this is off by default.
+    """
 
     def route(state: GraphState) -> StateUpdate:
         """Classify the question and record the decision on the state."""
+
+        if not multi_step:
+            return {"route": Route.SINGLE_SHOT}
 
         reply = llm.generate(build_routing_prompt(state.question)).strip().upper()
 

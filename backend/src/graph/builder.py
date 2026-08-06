@@ -25,9 +25,16 @@ reason node sets and counts nothing itself. A single-shot run never enters the
 cycle: `retrieve` branches on the route, so one value decides a run's shape
 and there is no second flag to disagree with it.
 
+The whole retrieve <-> reason half of that shape is behind
+RAG_MULTI_STEP_ENABLED, off by default — see `multi_step_enabled` below for
+the measurement that put it there. With the loop off the router never picks
+`reason`, so every run is route -> retrieve -> answer -> cite and the routing
+model call is skipped entirely.
+
 LEG-80 wires the graph execution path from RagService.ask().
 """
 
+import os
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -46,6 +53,31 @@ from services.llm import LLMProvider
 from services.retrieval_service import RetrievalService
 
 RagGraph = CompiledStateGraph[GraphState, Any, GraphState, GraphState]
+
+MULTI_STEP_ENV_VAR = "RAG_MULTI_STEP_ENABLED"
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def multi_step_enabled() -> bool:
+    """Whether the reason loop may run at all (LEG-80's rollback switch).
+
+    Off unless explicitly enabled, which is the opposite of the usual "ship it
+    on" default and deliberate. Measured against the corpus, a genuinely
+    compound question routed multi-step produced *no* answer where the
+    single-shot path answered it correctly: the reason node's sub-questions
+    restated rather than decomposed, and the extra passages they retrieved
+    diluted the good ones until the model reported the answer was not there.
+    Retrieval quality is not additive — more context made it worse.
+
+    So the loop stays behind a switch until LEG-78's reasoning prompt produces
+    sub-questions that narrow the search instead of widening it. Turning it on
+    is one env var, which is what the ticket asked for; leaving it off costs a
+    class of question we already answer correctly today.
+
+    Anything other than 1/true/yes/on is off, including an unset variable and
+    any typo — a rollback switch that fails open is not a rollback switch.
+    """
+    return os.environ.get(MULTI_STEP_ENV_VAR, "").strip().lower() in _TRUTHY
 
 
 def _after_reason(state: GraphState) -> str:
@@ -75,6 +107,7 @@ def build_graph(
     llm: LLMProvider,
     retrieval_service: RetrievalService | None = None,
     answer_service: AnswerService | None = None,
+    multi_step: bool | None = None,
 ) -> RagGraph:
     """Compile the RAG graph.
 
@@ -84,11 +117,20 @@ def build_graph(
     compatibility with graph skeleton tests that only validate routing and
     graph shape. The real application path (RagService.ask) always injects
     both services.
+
+    multi_step defaults to reading the environment, so the switch is a
+    deployment concern rather than a call-site one; tests pass it explicitly
+    to pin a shape without touching os.environ. The reason node stays in the
+    graph either way — with the loop disabled the router simply never sends
+    anything to it, which keeps one graph shape to reason about instead of
+    two.
     """
+    if multi_step is None:
+        multi_step = multi_step_enabled()
 
     builder = StateGraph(GraphState)
 
-    builder.add_node("route", make_route_node(llm))
+    builder.add_node("route", make_route_node(llm, multi_step))
 
     if retrieval_service is not None:
         builder.add_node(

@@ -74,10 +74,13 @@ class StubAnswerService(AnswerService):
 
 
 def run(route: str, reasoning: list[str] | None = None):
+    """multi_step forced on: this file tests the loop itself, which the
+    RAG_MULTI_STEP_ENABLED switch makes unreachable by default. That switch is
+    covered in test_multi_step_flag.py."""
     llm = ScriptedLLM(route, reasoning)
     retrieval = CountingRetrievalService()
     answers = StubAnswerService()
-    graph = build_graph(llm, retrieval, answers)
+    graph = build_graph(llm, retrieval, answers, multi_step=True)
 
     final = graph.invoke(GraphState(question="the original question", authorized=AllCases()))
     return final, llm, retrieval, answers
