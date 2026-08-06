@@ -1,7 +1,29 @@
-"""Wires the nodes into a runnable graph (LEG-74, LEG-76, LEG-80).
+"""Wires the nodes into a runnable graph (LEG-74, LEG-76, LEG-78, LEG-80).
 
 Graph shape:
-route -> retrieve -> reason -> answer -> cite
+
+    START     -> route
+    route     -> retrieve                  (both routes, always)
+    retrieve  -> reason     (multi-step)
+    retrieve  -> answer     (single-shot)
+    reason    -> retrieve   (another pass wanted)
+    reason    -> answer     (done, or the iteration cap was hit)
+    answer    -> cite       -> END
+
+Every run retrieves once on the original question before anything else looks
+at it. Two reasons. `reason`'s prompt asks whether *what has been retrieved so
+far* is enough, which has no meaning on an empty set — so reasoning first
+would be judging blind, and a stray DONE on that first pass would answer from
+no passages at all. And routing is a guess: when it wrongly calls a simple
+question multi-step, retrieving the original wording first means the mistake
+costs one extra model call rather than replacing a good query with a
+generated sub-question.
+
+The retrieve <-> reason cycle is the loop LEG-78's MAX_ITERATIONS caps, and
+that cap is the only thing ending it — `_after_reason` reads the flag the
+reason node sets and counts nothing itself. A single-shot run never enters the
+cycle: `retrieve` branches on the route, so one value decides a run's shape
+and there is no second flag to disagree with it.
 
 LEG-80 wires the graph execution path from RagService.ask().
 """
@@ -26,9 +48,27 @@ from services.retrieval_service import RetrievalService
 RagGraph = CompiledStateGraph[GraphState, Any, GraphState, GraphState]
 
 
-def _after_route(state: GraphState) -> Route:
-    """Decide where the graph goes after routing."""
-    return state.route or Route.SINGLE_SHOT
+def _after_reason(state: GraphState) -> str:
+    """Another retrieval pass, or enough found to attempt an answer.
+
+    Reads `should_continue`, which the reason node rewrites on every pass from
+    its own iteration count — so the cap in `MAX_ITERATIONS` is what actually
+    ends this loop. Nothing here counts; a guard in two places is a guard that
+    can disagree with itself.
+    """
+    return "retrieve" if state.should_continue else "answer"
+
+
+def _after_retrieve(state: GraphState) -> str:
+    """Back to reason on a multi-step run, straight to answer otherwise.
+
+    Branches on the route rather than on `should_continue`: a single-shot run
+    must never enter `reason`, and after a single-shot retrieval
+    `should_continue` is still its default False — indistinguishable from a
+    multi-step run that has decided to stop. The route is the one value that
+    already separates the two.
+    """
+    return "reason" if state.route == Route.MULTI_STEP else "answer"
 
 
 def build_graph(
@@ -81,17 +121,22 @@ def build_graph(
 
     builder.add_edge(START, "route")
 
+    # Not a branch: both routes retrieve first. The route is read later, by
+    # _after_retrieve, to decide whether this run reasons at all.
+    builder.add_edge("route", "retrieve")
+
     builder.add_conditional_edges(
-        "route",
-        _after_route,
-        {
-            Route.SINGLE_SHOT: "retrieve",
-            Route.MULTI_STEP: "reason",
-        },
+        "reason",
+        _after_reason,
+        {"retrieve": "retrieve", "answer": "answer"},
     )
 
-    builder.add_edge("reason", "retrieve")
-    builder.add_edge("retrieve", "answer")
+    builder.add_conditional_edges(
+        "retrieve",
+        _after_retrieve,
+        {"reason": "reason", "answer": "answer"},
+    )
+
     builder.add_edge("answer", "cite")
     builder.add_edge("cite", END)
 

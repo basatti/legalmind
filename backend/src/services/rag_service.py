@@ -9,14 +9,14 @@ passages into a grounded answer, and hand back the answer with its citations.
 """
 
 from foundation.authorization import CaseReader, TheseCases
-from foundation.models import DocumentChunk, User
+from foundation.models import User
 from foundation.schemas import CitationResponse, QueryAskResponse
 from graph.builder import build_graph
 from graph.state import GraphState
 from repositories.document_repository import DocumentRepository
 from services.answer_service import AnswerService
 from services.llm import LLMProvider
-from services.retrieval_service import RetrievalService, RetrievedMatch
+from services.retrieval_service import RetrievalService
 
 
 class RagService:
@@ -33,8 +33,11 @@ class RagService:
         self.answers = answers
         self.documents = documents
 
+        # Falling back to the answer service's own provider keeps the router
+        # and the reason node on the same model that writes the answer, which
+        # is what a caller passing no `llm` is asking for.
         self.graph = build_graph(
-            llm if llm is not None else answers.llm,
+            llm if llm is not None else answers.provider,
             retrieval,
             answers,
         )
@@ -81,25 +84,3 @@ class RagService:
         """
         document = self.documents.get_by_id(document_id)
         return document.filename if document else "Unknown document"
-
-    @staticmethod
-    def _passages(matches: list[RetrievedMatch]) -> list[DocumentChunk]:
-        """Flatten the matches into one ordered list, each chunk appearing once.
-
-        Two matches close together in the same document can pull in the same
-        neighbour, and a chunk sent twice would be numbered twice in the prompt
-        — so the model could cite the same page under two different numbers.
-
-        Keyed by (document, sequence) rather than by row id, since that holds
-        whether or not the rows came from the database with ids populated.
-        """
-        unique: dict[tuple[int, int], DocumentChunk] = {}
-
-        for match in matches:
-            for chunk in match.context_chunks:
-                unique.setdefault(
-                    (chunk.document_id, chunk.sequence),
-                    chunk,
-                )
-
-        return list(unique.values())

@@ -8,6 +8,15 @@ The two answers are fixed tokens rather than sentences. Prose varies between
 models, drifts with temperature, and would have to be recognised in Arabic as
 well as English — the corpus is Saudi labour law, so questions arrive in both.
 Two exact strings are checkable in any language.
+
+The instructions lean towards SINGLE_SHOT on a tie, deliberately. The two
+mistakes are not symmetric: classifying a genuinely compound question as
+single-shot still retrieves on the original wording, which is a reasonable
+query and usually finds one of the articles needed. Classifying a simple
+question as multi-step replaces that good query with a generated sub-question
+and spends several more model calls to do it. Measured against the gold set,
+the router was over-calling MULTI_STEP on questions wanting two facts from a
+single article — hence the explicit "count searches, not facts".
 """
 
 SINGLE_SHOT = "SINGLE_SHOT"
@@ -28,6 +37,12 @@ the answer to one part decides what to look up next.
 
 Judge only the shape of the question. Do not try to answer it, and do not \
 consider whether the documents happen to contain the answer.
+
+Count searches, not facts. A question that asks for several facts which would \
+sit together in the same article or section is still {single_shot} - wanting \
+two numbers from one place is one lookup, not two.
+
+If the shape is genuinely unclear, reply {single_shot}.
 
 Reply with exactly {single_shot} or {multi_step} and nothing else.
 """

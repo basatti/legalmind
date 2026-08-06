@@ -143,14 +143,23 @@ def test_a_single_shot_question_skips_the_reason_node() -> None:
     assert visited == ["route", "retrieve", "answer", "cite"]
 
 
-def test_a_multi_step_question_reasons_before_retrieving() -> None:
-    """Decomposition happens first, so retrieval is given the sub-questions.
+def test_a_multi_step_question_retrieves_before_reasoning() -> None:
+    """The original question is searched once before anything decomposes it.
 
-    Order matters, not just presence: reasoning after the search would be
-    reasoning about passages fetched for the compound question nobody intends
-    to answer as a whole.
+    This reverses the order LEG-76 first assumed, deliberately. `reason`'s
+    prompt (LEG-78) asks whether the passages retrieved *so far* are enough,
+    which says nothing on an empty set — so reasoning first meant judging
+    blind, and a stray DONE on that first pass answered from no passages at
+    all. Searching the original wording first also bounds the cost of a
+    misrouted question: a simple question wrongly called multi-step still gets
+    its own words searched, and pays one extra model call rather than losing
+    the good query to a generated sub-question.
+
+    Order still matters, just the other way round. The sub-questions reach
+    retrieval on the passes after this one, driven by `should_continue`; that
+    loop is covered in test_graph_loop.py.
     """
     visited = visited_nodes(MULTI_STEP)
 
-    assert visited.index("reason") < visited.index("retrieve")
-    assert visited == ["route", "reason", "retrieve", "answer", "cite"]
+    assert visited.index("retrieve") < visited.index("reason")
+    assert visited == ["route", "retrieve", "reason", "answer", "cite"]

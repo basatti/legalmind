@@ -84,10 +84,3 @@ class GraphState:
     the graph's conditional edge after reason, never by reason itself on a
     later call - the node decides fresh each time from state.iterations and
     what it just read, not from what it decided last time."""
-
-    should_continue: bool = False
-    """Set by the reason node: True sends the run back to retrieve for
-    another pass, False lets it fall through to answer. LEG-78. Read once by
-    the graph's conditional edge after reason, never by reason itself on a
-    later call - the node decides fresh each time from state.iterations and
-    what it just read, not from what it decided last time."""

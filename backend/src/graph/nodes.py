@@ -14,7 +14,7 @@ from graph.routing_prompt import MULTI_STEP, SINGLE_SHOT, build_routing_prompt
 from graph.state import GraphState, Route
 from services.answer_service import AnswerService
 from services.llm import LLMProvider
-from services.retrieval_service import RetrievalService
+from services.retrieval_service import RetrievalService, unique_passages
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +52,38 @@ def make_route_node(llm: LLMProvider) -> Node:
 
 
 def make_retrieve_node(retrieval_service: RetrievalService) -> Node:
-    """Build retrieval node using RetrievalService (LEG-77)."""
+    """Build the node that fetches passages for the question.
+
+    Takes the service rather than reaching for one, for the same reason
+    `make_route_node` takes the model: a test supplies a fake, and nothing in
+    here decides which retrieval backend is real.
+    """
 
     def retrieve(state: GraphState) -> StateUpdate:
+        """Fetch passages for the current query, inside `state.authorized` only.
+
+        Passes `state.authorized` straight through to
+        `RetrievalService.retrieve(within=...)`: the scope arrived already
+        resolved at the front door, and filtering happens inside the query,
+        before ranking. Never recomputed here — see the module docstring on
+        `GraphState`.
+
+        The query is the latest sub-question when `reason` has already run —
+        `reasoning` is empty on the single-shot path and on the first pass of
+        a multi-step one, so `state.question` covers both until `reason`
+        starts appending to it. This is what lets retrieval work from a
+        sub-question rather than the compound original once LEG-78 fills
+        `reason` in, without this node needing to know how that decomposition
+        happened.
+
+        Matches accumulate rather than replace: a multi-step question can
+        loop back here more than once, and each pass adds to what earlier
+        passes found rather than discarding it.
+        """
+        query = state.reasoning[-1] if state.reasoning else state.question
+
         matches = retrieval_service.retrieve(
-            state.question,
+            query,
             within=state.authorized,
         )
 
@@ -92,7 +119,11 @@ def make_reason_node(llm: LLMProvider) -> Node:
                 "should_continue": False,
             }
 
-        summaries = [match.chunk.text for match in state.matches]
+        # The matched chunk itself, not its context_chunks — neighbours are
+        # there to keep the *answer* readable, and folding them in here would
+        # feed the same text to the model several times over as the passes
+        # accumulate.
+        summaries = [retrieved.match.text for retrieved in state.matches]
 
         prompt = build_reasoning_prompt(
             state.question,
@@ -135,11 +166,14 @@ def make_answer_node(answer_service: AnswerService) -> Node:
     """Build the terminal answer node using AnswerService (LEG-79)."""
 
     def answer(state: GraphState) -> StateUpdate:
-        passages = []
+        # Deduped, not a plain flatten: a multi-step run retrieves several
+        # times, and overlapping matches would otherwise send the same chunk
+        # to the model twice under two different passage numbers.
+        passages = unique_passages(state.matches)
 
-        for match in state.matches:
-            passages.extend(match.context_chunks)
-
+        # The original question, never the last sub-question — the sub-questions
+        # were a means of finding passages, and the answer has to address what
+        # was actually asked.
         result = answer_service.answer(
             state.question,
             passages,

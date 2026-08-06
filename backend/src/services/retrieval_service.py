@@ -27,6 +27,27 @@ class RetrievedMatch:
     context_chunks: list[DocumentChunk]  # match + neighbours, in sequence order
 
 
+def unique_passages(matches: list[RetrievedMatch]) -> list[DocumentChunk]:
+    """Flatten the matches into one ordered list, each chunk appearing once.
+
+    Two matches close together in the same document can pull in the same
+    neighbour, and a chunk sent twice would be numbered twice in the prompt
+    — so the model could cite the same page under two different numbers.
+    Keyed by (document, sequence) rather than by row id, since that holds
+    whether or not the rows came from the database with ids populated.
+
+    Lives here, beside `RetrievedMatch`, rather than on either caller: the
+    graph's answer node and RagService both need it, and `services.rag_service`
+    imports `graph.builder`, so a helper owned by the service and imported by
+    the node would close an import cycle.
+    """
+    unique: dict[tuple[int, int], DocumentChunk] = {}
+    for match in matches:
+        for chunk in match.context_chunks:
+            unique.setdefault((chunk.document_id, chunk.sequence), chunk)
+    return list(unique.values())
+
+
 class RetrievalService:
     def __init__(
         self,
