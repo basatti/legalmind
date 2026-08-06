@@ -15,8 +15,8 @@ Three words, used throughout the UI:
 
 - **Observation** — one recorded unit of work. Has an input, an output, a start
   and end time.
-- **Trace** — the top-level container. Today one AI call produces one trace;
-  LEG-84 will nest a whole question's calls under a single one.
+- **Trace** — the top-level container. One question produces one trace, with
+  every model call it made nested inside it (LEG-84).
 - **Span / generation / embedding** — the *kind* of observation. Langfuse
   renders them differently: a generation and an embedding get a model name and
   token counts, a plain span does not, because a span is not a model call.
@@ -127,7 +127,21 @@ Two provider classes trace themselves:
 - `services/company_llm.py` → `Kind.GENERATION`
 - `embeddings/company_api.py` → `Kind.EMBEDDING`
 
-and `routers/query_router.py` hands them the tracer when it builds them.
+and `services/rag_service.py` opens the `rag-run` span those calls nest inside
+(LEG-84). `routers/query_router.py` hands all three the tracer when it builds
+them.
+
+### How the nesting works
+
+`start_as_current_observation` does what its name says: the span it opens
+becomes *the currently active span* for this thread, and anything opened after
+it attaches as a child. Nothing is threaded through `RagService` → graph →
+nodes → providers. The root is opened once in `ask()` and the provider spans
+find their own parent.
+
+The proof is visible in the UI: `rag-run` reports token counts even though
+`ask()` never sets `record.usage`. Those totals can only be its children's,
+rolled up.
 
 ### Three design decisions worth knowing
 
@@ -191,15 +205,22 @@ cannot find `role` and `content`. `{"texts": texts}` renders cleanly.
 This is what the whole thing is for. A lawyer reports a bad answer; open the
 trace and work down this list.
 
-**1. Is there a `company-embeddings` observation at all?**
-No → the question never reached retrieval. Look at authorization: a user
-assigned to no cases gets a clean "no answer" before any AI call happens.
+**1. Open the `rag-run` trace and read its metadata.**
+`scope` is how wide the search was allowed to be, `route` which shape the run
+took, `passages` how many reached the model, `retrieval_passes` how many times
+it went looking. If `scope` reads `0 case(s)`, stop here — this is a
+permissions problem, and no model was ever called.
 
-**2. Open `company-llm` and read the Input.**
+**2. If `answered` is false, read `why`.**
+`no authorized cases` and `no grounded answer` are indistinguishable to the
+lawyer — both return an empty answer, deliberately — but they are completely
+different bugs. This field is the only place the two are told apart.
+
+**3. Open the nested `company-llm` and read the Input.**
 This is the full assembled prompt, including the numbered passages retrieved for
 this question. It is the single most useful field in the system.
 
-**3. Do the passages actually contain the answer?**
+**4. Do the passages actually contain the answer?**
 
 - **No** → this is a *retrieval* problem, not a model problem. The right
   document was never handed over. Check chunking, embeddings, or whether the
@@ -207,18 +228,18 @@ this question. It is the single most useful field in the system.
 - **Yes** → this is a *generation* problem. The model had what it needed and
   still got it wrong. Now the prompt, the model, or the language is in question.
 
-**4. Is the Output exactly `NOT_FOUND`?**
+**5. Is the Output exactly `NOT_FOUND`?**
 The model is reporting that the answer is not in the passages — see
-`services/prompt.py`. If step 3 says it *is* in there, that is a real model
+`services/prompt.py`. If step 4 says it *is* in there, that is a real model
 failure worth recording; Arabic quality is model-dependent, and this is exactly
 the kind of case LEG-85's gold set exists to catch.
 
-**5. Check the token counts.**
+**6. Check the token counts.**
 An unusually large input may have been truncated by the model's context window,
 in which case the passages you can see in the trace are not all the passages the
 model actually read.
 
-**6. Check the latency.**
+**7. Check the latency.**
 A slow generation with a normal-sized prompt points at the gateway, not at us.
 
 If `RAG_MULTI_STEP_ENABLED` is on, expect several retrieval passes per question,
@@ -233,11 +254,10 @@ original.
   the default `NullTracer`. Ingestion embeds hundreds of chunks per document,
   which would flood the trace list for little debugging value. One line to
   change if that stops being true.
-- **Retrieval, routing, and the graph nodes.** LEG-83 covers the two external
-  API calls. Everything else is a candidate under LEG-84.
-
-One question currently produces **two separate traces**, not one. Stapling them
-into a single trace per run is LEG-84.
+- **Retrieval, routing, and the individual graph nodes.** Only the two external
+  API calls have spans of their own. `rag-run` reports the graph's *outcome* —
+  route, passes, passage count — but the nodes themselves are not observed.
+  Adding them follows the recipe above.
 
 ---
 
@@ -316,8 +336,8 @@ chat messages. Pass a dict.
 
 ## Related
 
-- **LEG-83** — this (spans on LLM/embedding calls)
-- **LEG-84** — one trace per question instead of several
+- **LEG-83** — spans on the LLM and embedding calls
+- **LEG-84** — the `rag-run` span they nest inside
 - **LEG-85** — the Arabic-first gold set, in `backend/evals/`
 - **LEG-86** — the eval harness, `backend/scripts/ragas_eval.py`
 - **LEG-87** — reporting quality metrics over time

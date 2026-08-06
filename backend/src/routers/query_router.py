@@ -69,6 +69,7 @@ def get_rag_service(
     session: Session = Depends(get_session),
     embedding_provider: EmbeddingProvider = Depends(get_embedding_provider),
     llm: LLMProvider = Depends(get_llm_provider),
+    tracer: Tracer = Depends(get_tracer),
 ) -> RagService:
     return RagService(
         case_reader=AssignmentCaseReader(AssignmentRepository(session)),
@@ -79,6 +80,7 @@ def get_rag_service(
         answers=AnswerService(llm),
         documents=DocumentRepository(session),
         llm=llm,
+        tracer=tracer,
     )
 
 
