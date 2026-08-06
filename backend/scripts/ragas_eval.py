@@ -266,7 +266,7 @@ def run_ragas(results: list[ItemResult], label: str) -> dict[str, dict[str, floa
     llm = ChatOpenAI(
         base_url=base_url,
         api_key=os.environ["COMPANY_API_KEY"],
-        model=os.environ.get("COMPANY_LLM_MODEL", "gpt-oss"),
+        model=os.environ.get("COMPANY_LLM_MODEL", "gemma4"),
         temperature=0,
     )
     # OpenAIEmbeddings defaults to text-embedding-ada-002, which the company

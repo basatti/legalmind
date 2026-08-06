@@ -17,7 +17,7 @@ import httpx
 
 from services.llm import LLMError, LLMProvider
 
-DEFAULT_MODEL = "gpt-oss"
+DEFAULT_MODEL = "gemma4"
 DEFAULT_TIMEOUT_SECONDS = 120.0
 
 
