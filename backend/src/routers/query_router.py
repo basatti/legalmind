@@ -10,6 +10,7 @@ from foundation.database import get_session
 from foundation.models import User
 from foundation.permissions import Permission
 from foundation.schemas import QueryAskRequest, QueryAskResponse
+from observability import Tracer, build_tracer
 from repositories.assignment_case_reader import AssignmentCaseReader
 from repositories.assignment_repository import AssignmentRepository
 from repositories.document_chunk_repository import DocumentChunkRepository
@@ -23,6 +24,18 @@ from services.rag_service import RagService
 from services.retrieval_service import RetrievalService
 
 router = APIRouter(prefix="/query", tags=["query"])
+
+
+@lru_cache(maxsize=1)
+def get_tracer() -> Tracer:
+    """One tracer for the whole process (LEG-83).
+
+    Cached because a real Langfuse client owns a background exporter thread and
+    an HTTP connection pool — one per request would leak both. Returns a
+    NullTracer whenever Langfuse is unconfigured, which is the normal case in
+    CI and on a fresh clone.
+    """
+    return build_tracer()
 
 
 @lru_cache(maxsize=1)
@@ -40,7 +53,7 @@ def get_embedding_provider() -> EmbeddingProvider:
     chunks. Vectors from two different models cannot be compared at all — the
     search would still return its top five, ranked by nothing.
     """
-    return LazyEmbeddingProvider(CompanyEmbeddingProvider)
+    return LazyEmbeddingProvider(lambda: CompanyEmbeddingProvider(tracer=get_tracer()))
 
 
 @lru_cache(maxsize=1)
@@ -49,7 +62,7 @@ def get_llm_provider() -> LLMProvider:
 
     Lazily built for the same reason as get_embedding_provider above.
     """
-    return LazyLLMProvider(CompanyLLMProvider)
+    return LazyLLMProvider(lambda: CompanyLLMProvider(tracer=get_tracer()))
 
 
 def get_rag_service(

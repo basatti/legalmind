@@ -18,3 +18,7 @@ storage/
 # config and stays tracked; these two are per-developer/local-only).
 .claude/launch.json
 .claude/settings.local.json
+
+
+# Throwaway exploration scripts and their output — not linted, not committed.
+backend/scripts/scratch/

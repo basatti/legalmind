@@ -8,6 +8,9 @@ either way.
 
 Config comes from the environment so switching endpoints or keys is a config
 change, not a code change — mirrors OllamaLLMProvider.
+
+Traces itself for the same reason CompanyLLMProvider does (LEG-83): the token
+counts are in the HTTP response, which nothing outside this class ever sees.
 """
 
 import os
@@ -16,6 +19,7 @@ from typing import Any
 import httpx
 
 from embeddings.base import EmbeddingProvider, Vector
+from observability.tracer import Kind, NullTracer, Tracer
 
 DEFAULT_MODEL = "bge-m3"
 DEFAULT_DIMENSIONS = 1024
@@ -30,7 +34,8 @@ class CompanyEmbeddingProvider(EmbeddingProvider):
     """Talks to the company's hosted embedding endpoint.
 
     Accepts an injected transport so the request this builds can be inspected
-    without a live server — the same reason OllamaLLMProvider does.
+    without a live server — the same reason OllamaLLMProvider does. The tracer
+    is injected on the same principle and defaults to recording nothing.
     """
 
     def __init__(
@@ -41,6 +46,7 @@ class CompanyEmbeddingProvider(EmbeddingProvider):
         dimensions: int = DEFAULT_DIMENSIONS,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
         transport: httpx.BaseTransport | None = None,
+        tracer: Tracer | None = None,
     ) -> None:
         self.api_url = (api_url or os.environ["COMPANY_API_URL"]).rstrip("/")
         self.api_key = api_key or os.environ["COMPANY_API_KEY"]
@@ -48,6 +54,7 @@ class CompanyEmbeddingProvider(EmbeddingProvider):
         self._dimensions = dimensions
         self.timeout = timeout
         self._transport = transport
+        self._tracer = tracer or NullTracer()
 
     @property
     def dimensions(self) -> int:
@@ -55,8 +62,26 @@ class CompanyEmbeddingProvider(EmbeddingProvider):
 
     def embed(self, texts: list[str]) -> list[Vector]:
         if not texts:
+            # No request is made, so there is nothing to observe. An empty span
+            # would be a line in the trace saying nothing happened.
             return []
 
+        with self._tracer.observe(
+            "company-embeddings",
+            kind=Kind.EMBEDDING,
+            input={"texts": texts},
+            model=self.model,
+        ) as record:
+            payload = self._post(texts)
+            record.usage = self._usage(payload)
+            vectors = self._vectors(payload, expected=len(texts))
+            # Not the vectors themselves. A thousand floats per row is unreadable
+            # and answers no question anyone opens a trace to ask; how many came
+            # back, and how wide, is what tells you the call went right.
+            record.output = {"vectors": len(vectors), "dimensions": self._dimensions}
+            return vectors
+
+    def _post(self, texts: list[str]) -> Any:
         try:
             with httpx.Client(timeout=self.timeout, transport=self._transport) as client:
                 response = client.post(
@@ -72,7 +97,7 @@ class CompanyEmbeddingProvider(EmbeddingProvider):
                 f"Embedding API returned {response.status_code}: {response.text[:300]}"
             )
 
-        return self._vectors(response.json(), expected=len(texts))
+        return response.json()
 
     def _vectors(self, payload: Any, expected: int) -> list[Vector]:
         try:
@@ -89,3 +114,20 @@ class CompanyEmbeddingProvider(EmbeddingProvider):
                     f"Model produced a {len(vector)}-wide vector, expected {self._dimensions}"
                 )
         return vectors
+
+    @staticmethod
+    def _usage(payload: Any) -> dict[str, int]:
+        """Token counts, renamed to the vocabulary Langfuse expects.
+
+        No `output` key: embedding endpoints report tokens read, and there is no
+        such thing as a token written — the reply is a vector, not text.
+        """
+        usage = payload.get("usage") if isinstance(payload, dict) else None
+        if not isinstance(usage, dict):
+            return {}
+
+        renamed = {
+            "input": usage.get("prompt_tokens"),
+            "total": usage.get("total_tokens"),
+        }
+        return {key: value for key, value in renamed.items() if isinstance(value, int)}
