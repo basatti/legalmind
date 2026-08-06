@@ -19,3 +19,6 @@ storage/
 .claude/launch.json
 .claude/settings.local.json
 backend/evals/results/
+
+# Throwaway exploration scripts and their output — not linted, not committed.
+backend/scripts/scratch/

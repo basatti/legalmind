@@ -10,6 +10,7 @@ dependencies = [
     "email-validator>=2.3.0",
     "fastapi[standard]>=0.138.2",
     "httpx>=0.28.1",
+    "langfuse>=4.14.2",
     "langgraph>=1.2.10",
     "pgvector>=0.5.0",
     "psycopg[binary]>=3.3.4",
@@ -44,7 +45,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/foundation", "src/routers", "src/services", "src/repositories", "src/parsers", "src/chunkers", "src/embeddings", "src/graph"]
+packages = ["src/foundation", "src/routers", "src/services", "src/repositories", "src/parsers", "src/chunkers", "src/embeddings", "src/graph", "src/observability"]
 
 # ---------------------------------------------------------------------------
 # Ruff (lint + format)
@@ -60,7 +61,7 @@ select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM"]
 ignore = ["B008"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["foundation", "parsers", "chunkers", "embeddings", "graph"]
+known-first-party = ["foundation", "parsers", "chunkers", "embeddings", "graph", "observability"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -72,7 +73,7 @@ indent-style = "space"
 [tool.mypy]
 python_version = "3.11"
 mypy_path = "src"
-packages = ["foundation", "routers", "services", "repositories", "parsers", "chunkers", "embeddings", "graph"]
+packages = ["foundation", "routers", "services", "repositories", "parsers", "chunkers", "embeddings", "graph", "observability"]
 strict = true
 warn_unused_configs = true
 warn_return_any = true
@@ -83,4 +84,4 @@ ignore_missing_imports = true
 # ---------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --cov=foundation --cov=parsers --cov=chunkers --cov=repositories --cov=services --cov=embeddings --cov=graph --cov-report=term-missing"
+addopts = "-ra --cov=foundation --cov=parsers --cov=chunkers --cov=repositories --cov=services --cov=embeddings --cov=graph --cov=observability --cov-report=term-missing"
