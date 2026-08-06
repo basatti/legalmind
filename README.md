@@ -43,6 +43,11 @@ npm install
 See [`docs/running-locally.md`](docs/running-locally.md) — the three terminals,
 the URLs, the login, and what to check when something does not work.
 
+## Observability
+
+See [`docs/observability.md`](docs/observability.md) — running Langfuse locally,
+reading a trace to debug a wrong answer, and what to do when there are none.
+
 ## Running checks
 
 From the repo root:
