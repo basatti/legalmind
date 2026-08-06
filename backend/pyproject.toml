@@ -30,6 +30,14 @@ dev = [
 embeddings = [
     "sentence-transformers>=3.0.0",
 ]
+evals = [
+    # Pinned below 0.3: 0.4.x's ragas.llms.base unconditionally imports
+    # langchain_community's Vertex AI integration, which 500s on import
+    # unless the unrelated langchain-google-vertexai extra is installed.
+    "ragas>=0.2,<0.3",
+    "datasets>=3.0",
+    "langchain-openai>=0.2",
+]
 
 [build-system]
 requires = ["hatchling"]
