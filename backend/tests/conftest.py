@@ -40,6 +40,26 @@ if not _database_url.endswith("_test"):
     )
 
 
+@pytest.fixture(autouse=True)
+def never_trace_from_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Guarantee the suite traces nothing, whatever else has loaded `.env`.
+
+    `build_tracer()` reads the environment, so any test that reaches it will
+    ship real traces to a real Langfuse the moment those three variables are
+    present in the process. That happened: `test_eval_reporting.py` imports
+    `scripts/ragas_eval.py`, which calls `load_dotenv(backend/.env)` at module
+    scope, and one `pytest tests` run then wrote 8 `rag-run` traces into the
+    developer's live instance — polluting the data LEG-87's report reads.
+
+    Autouse and unconditional, in the same spirit as the DATABASE_URL guard
+    above: the damage is silent, and a test suite must not depend on nobody
+    having imported the wrong module. Tests that want a real tracer build one
+    explicitly; nothing should get one by accident.
+    """
+    for name in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture(scope="session")
 def engine():
     test_engine = create_engine(os.environ["DATABASE_URL"])

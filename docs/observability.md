@@ -295,9 +295,39 @@ LEG-17's acceptance criteria mention tracing cost. On a self-hosted gateway
 there is no vendor price to read, so Langfuse's cost column stays at $0.00 and
 that is correct, not broken.
 
-What is real is **tokens and latency**, both of which are recorded. If a money
-figure is ever genuinely wanted, a rate has to be configured deliberately — see
-LEG-87.
+What is real is **tokens and latency**. LEG-87 settled this: cost *is* those two
+numbers here, and both are recorded per gold-set item by `scripts/ragas_eval.py`
+and carried into `docs/eval-results.md`. Nobody should go looking for a money
+figure that does not exist. If one is ever genuinely wanted, a rate has to be
+configured deliberately in Langfuse — it cannot be derived from anything the
+gateway reports.
+
+---
+
+## Scoring a run (LEG-87)
+
+`Tracer.score(name, value)` attaches a judgement to observed work. It is
+deliberately not a field on `Observation`: everything on that record is
+something the work itself produced, and a score is somebody else's opinion of
+it, formed afterwards.
+
+It has two timings, because judgements arrive at two different moments:
+
+```python
+with tracer.observe("eval-item[graph]", kind=Kind.SPAN) as record:
+    ...
+    tracer.score("answer_hit", 1.0)          # on the span, decided on the spot
+
+tracer.score("faithfulness", 0.83, trace_id=record.trace_id)   # long after
+```
+
+The second form exists for RAGAS, which grades a whole batch at once — by the
+time it has an opinion, every span it is judging has closed. `record.trace_id`
+is the one field the *tracer* writes and the caller reads, and it is only
+readable while the span is open.
+
+Under `NullTracer` both forms are no-ops and `trace_id` is None, so an untraced
+eval run cannot silently look like a scored one.
 
 ---
 
@@ -340,5 +370,6 @@ chat messages. Pass a dict.
 - **LEG-84** — the `rag-run` span they nest inside
 - **LEG-85** — the Arabic-first gold set, in `backend/evals/`
 - **LEG-86** — the eval harness, `backend/scripts/ragas_eval.py`
-- **LEG-87** — reporting quality metrics over time
+- **LEG-87** — quality over time: `docs/eval-results.md`, generated from
+  `backend/evals/history.jsonl` by `backend/scripts/eval_report.py`
 - **LEG-88** — a written walkthrough of debugging one real bad answer

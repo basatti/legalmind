@@ -57,6 +57,11 @@ class LangfuseTracer(Tracer):
             return
 
         with manager as span:
+            # Read while the span is open — this is the only window in which
+            # the SDK knows which trace is current, and LEG-87 needs the id
+            # after the block has closed.
+            record.trace_id = self._current_trace_id()
+
             try:
                 yield record
             finally:
@@ -96,6 +101,39 @@ class LangfuseTracer(Tracer):
             )
         except Exception:
             logger.warning("Langfuse could not record the result of %r", name, exc_info=True)
+
+    def _current_trace_id(self) -> str | None:
+        """The trace the open span belongs to, or None if the SDK won't say."""
+        try:
+            return self._client.get_current_trace_id()
+        except Exception:
+            logger.warning("Langfuse could not report the current trace id", exc_info=True)
+            return None
+
+    def score(
+        self,
+        name: str,
+        value: float,
+        *,
+        comment: str | None = None,
+        trace_id: str | None = None,
+    ) -> None:
+        """Score the open span, or a named trace that has already closed.
+
+        Without an id, `score_current_span` — inside `observe` the span is
+        already the active one, so asking the SDK which span that is beats
+        making every caller carry it. With an id, `create_score`, which is the
+        only route once the span is gone.
+        """
+        try:
+            if trace_id is None:
+                self._client.score_current_span(name=name, value=value, comment=comment)
+            else:
+                self._client.create_score(
+                    name=name, value=value, comment=comment, trace_id=trace_id
+                )
+        except Exception:
+            logger.warning("Langfuse could not record score %r", name, exc_info=True)
 
     def flush(self) -> None:
         try:

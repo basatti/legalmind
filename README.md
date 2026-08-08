@@ -48,6 +48,13 @@ the URLs, the login, and what to check when something does not work.
 See [`docs/observability.md`](docs/observability.md) — running Langfuse locally,
 reading a trace to debug a wrong answer, and what to do when there are none.
 
+## Answer quality
+
+See [`docs/eval-results.md`](docs/eval-results.md) — every recorded eval run and
+what it measured. Generated from `backend/evals/history.jsonl`; read the spread
+before the mean, and treat a single-round run as measuring that run rather than
+the system.
+
 ## Running checks
 
 From the repo root:

@@ -39,6 +39,16 @@ evals = [
     "datasets>=3.0",
     "langchain-openai>=0.2",
 ]
+# Installing this extra currently breaks `mypy`: it pulls in numpy, whose 2.5
+# stubs use 3.12-only `type` statements while [tool.mypy] is pinned to 3.11
+# (matching the 3.11 Dockerfile). Nothing here imports numpy — pgvector does —
+# and no mypy override suppresses it, because the stub fails at parse time
+# before per-module config applies.
+#
+# CI installs no extras and never sees it. Locally it matters, because mypy
+# runs before pytest and a red mypy skips the whole suite — the LEG-78/80
+# failure mode. Until numpy is pinned here, run `uv sync --extra dev` (without
+# --extra evals) before running the checks.
 
 [build-system]
 requires = ["hatchling"]

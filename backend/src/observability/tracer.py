@@ -59,6 +59,14 @@ class Observation:
     """Anything else worth seeing that is neither the input nor the output —
     how many texts were embedded, which model answered."""
 
+    trace_id: str | None = None
+    """Which trace this observation ended up in. The one field written by the
+    *tracer* and read by the caller, rather than the other way round: it only
+    exists once a span is open, and a caller cannot know it in advance. Needed
+    to score a run after it has finished (LEG-87) — RAGAS grades a whole batch
+    once every item has been answered, by which time the spans are closed.
+    None under `NullTracer`, and under any failure to open a span."""
+
 
 class Tracer(ABC):
     """Records what the system did, for someone reading it back later."""
@@ -78,6 +86,30 @@ class Tracer(ABC):
         implementation measures itself. Asking every call site to time its own
         work would be one more thing to get wrong, and to get wrong
         inconsistently.
+        """
+
+    @abstractmethod
+    def score(
+        self,
+        name: str,
+        value: float,
+        *,
+        comment: str | None = None,
+        trace_id: str | None = None,
+    ) -> None:
+        """Attach a numeric score to observed work.
+
+        Separate from `Observation` on purpose. Everything on that record is
+        something the observed work itself produced — its output, its tokens.
+        A score is a *judgement about* that work, arrived at afterwards and by
+        someone else: the eval harness deciding whether the answer was right
+        (LEG-87). Folding it into the record would blur who said what.
+
+        Two timings, because judgements arrive at two different moments. With
+        no `trace_id` the score lands on whatever span is currently open, which
+        is what a check made on the spot wants. With one — taken from
+        `Observation.trace_id` while the span was open — it lands on that
+        trace however long afterwards, which is what a batch grader needs.
         """
 
     @abstractmethod
@@ -113,6 +145,16 @@ class NullTracer(Tracer):
         # An Observation is still handed out and still written to. Callers have
         # no branch for "tracing off"; their writes simply go nowhere.
         return self._nothing()
+
+    def score(
+        self,
+        name: str,
+        value: float,
+        *,
+        comment: str | None = None,
+        trace_id: str | None = None,
+    ) -> None:
+        return None
 
     def flush(self) -> None:
         return None

@@ -27,6 +27,7 @@ class RecordingTracer(Tracer):
     def __init__(self) -> None:
         self.opened: list[dict[str, Any]] = []
         self.records: list[Observation] = []
+        self.scores: list[tuple[str, float, str | None]] = []
 
     @contextmanager
     def observe(
@@ -41,6 +42,16 @@ class RecordingTracer(Tracer):
         record = Observation()
         self.records.append(record)
         yield record
+
+    def score(
+        self,
+        name: str,
+        value: float,
+        *,
+        comment: str | None = None,
+        trace_id: str | None = None,
+    ) -> None:
+        self.scores.append((name, value, comment))
 
     def flush(self) -> None:
         return None

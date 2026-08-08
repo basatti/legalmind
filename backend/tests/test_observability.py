@@ -42,10 +42,20 @@ class FakeClient:
         self.opened: list[dict[str, Any]] = []
         self.span = FakeSpan()
         self.flushes = 0
+        self.scores: list[dict[str, Any]] = []
 
     def start_as_current_observation(self, **kwargs: Any) -> FakeManager:
         self.opened.append(kwargs)
         return FakeManager(self.span)
+
+    def get_current_trace_id(self) -> str:
+        return "trace-abc123"
+
+    def score_current_span(self, **kwargs: Any) -> None:
+        self.scores.append({**kwargs, "via": "current_span"})
+
+    def create_score(self, **kwargs: Any) -> None:
+        self.scores.append({**kwargs, "via": "create_score"})
 
     def flush(self) -> None:
         self.flushes += 1
@@ -189,6 +199,102 @@ def test_flush_reaches_the_client_and_survives_it_failing() -> None:
             raise RuntimeError("nope")
 
     LangfuseTracer(BrokenFlush()).flush()  # type: ignore[arg-type]
+
+
+# --- scores (LEG-87) -------------------------------------------------------
+
+
+def test_a_score_with_no_trace_id_lands_on_the_open_span() -> None:
+    tracer, client = traced()
+
+    with tracer.observe("gold-item", kind=Kind.SPAN):
+        tracer.score("answer_hit", 1.0, comment="matched 'واحد وعشرين'")
+
+    print(f"scores={client.scores}")
+    assert client.scores == [
+        {
+            "name": "answer_hit",
+            "value": 1.0,
+            "comment": "matched 'واحد وعشرين'",
+            "via": "current_span",
+        }
+    ]
+
+
+def test_a_span_reports_the_trace_it_landed_in() -> None:
+    """What lets a batch grader come back to an item after its span has closed."""
+    tracer, _ = traced()
+
+    with tracer.observe("gold-item", kind=Kind.SPAN) as record:
+        pass
+
+    assert record.trace_id == "trace-abc123"
+
+
+def test_a_score_with_a_trace_id_is_created_against_that_trace() -> None:
+    """RAGAS grades the whole batch once every span is closed (LEG-87)."""
+    tracer, client = traced()
+
+    with tracer.observe("gold-item", kind=Kind.SPAN) as record:
+        pass
+
+    tracer.score("faithfulness", 0.83, trace_id=record.trace_id)
+
+    print(f"scores={client.scores}")
+    assert client.scores == [
+        {
+            "name": "faithfulness",
+            "value": 0.83,
+            "comment": None,
+            "trace_id": "trace-abc123",
+            "via": "create_score",
+        }
+    ]
+
+
+def test_the_null_tracer_reports_no_trace_id_to_score_against() -> None:
+    """Untraced runs must not silently look like they were scored."""
+    with NullTracer().observe("gold-item") as record:
+        pass
+
+    assert record.trace_id is None
+
+
+def test_a_score_that_cannot_be_recorded_does_not_break_the_caller() -> None:
+    """Same rule as everywhere else here: a broken trace server is never fatal.
+
+    An eval run that dies because Langfuse rejected a score would lose the
+    whole measurement, which costs far more than the missing score.
+    """
+
+    class BrokenScore:
+        def score_current_span(self, **kwargs: Any) -> None:
+            raise RuntimeError("score rejected")
+
+        def create_score(self, **kwargs: Any) -> None:
+            raise RuntimeError("score rejected")
+
+    broken = LangfuseTracer(BrokenScore())  # type: ignore[arg-type]
+    broken.score("answer_hit", 1.0)
+    broken.score("faithfulness", 0.5, trace_id="trace-abc123")
+
+
+def test_a_client_that_will_not_report_a_trace_id_does_not_break_the_caller() -> None:
+    class NoTraceId:
+        def start_as_current_observation(self, **kwargs: Any) -> FakeManager:
+            return FakeManager(FakeSpan())
+
+        def get_current_trace_id(self) -> str:
+            raise RuntimeError("no context")
+
+    with LangfuseTracer(NoTraceId()).observe("gold-item") as record:  # type: ignore[arg-type]
+        pass
+
+    assert record.trace_id is None
+
+
+def test_the_null_tracer_accepts_a_score_and_discards_it() -> None:
+    assert NullTracer().score("answer_hit", 1.0) is None
 
 
 # --- choosing a tracer from config -----------------------------------------
