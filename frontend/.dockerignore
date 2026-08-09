@@ -1,0 +1,11 @@
+# node_modules holds platform-specific binaries built for Windows. Copying
+# them into a Linux image breaks the build - npm ci rebuilds them correctly.
+node_modules
+
+# Build output from your local `npm run dev`/`npm run build`. The image builds
+# its own; a stale copy here causes confusing results.
+.next
+
+.git
+.env*
+npm-debug.log*

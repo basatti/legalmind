@@ -10,18 +10,61 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # -h 127.0.0.1 on purpose. On a fresh volume the image runs its setup pass
+    # against a temporary server that listens on the Unix socket only, and a
+    # socket check would report ready while the real server is still starting.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d legalmind"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # Applies the Alembic chain once, then exits. Its own service on purpose:
+  # app and worker are the same image started at the same moment, so migrating
+  # from shared startup code would have both of them racing each other through
+  # the same 15 steps. Everything that touches the schema waits for this to
+  # exit 0. No working_dir override - alembic.ini lives at /app.
+  migrate:
+    build: ./backend
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    # migrations/env.py reads DATABASE_URL directly and raises KeyError when
+    # it is unset. Nothing in the migration path needs the rest of .env.
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
+    command: ["uv", "run", "alembic", "upgrade", "head"]
 
   app:
     build: ./backend
     restart: unless-stopped
     depends_on:
-      - db
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
     ports:
       - "8000:8000"
+    # Uploads land here and the worker reads them back later. Separate
+    # containers do not share a filesystem, so without this the worker's
+    # ingestion job fails with FileNotFoundError and the document is never
+    # searchable. foundation/storage.py writes to the relative path
+    # "storage/documents", which resolves under /app in both services.
+    volumes:
+      - document_storage:/app/storage
+    # /health is a literal dict - it proves uvicorn is answering, not that the
+    # database is reachable. That is the right scope here: db readiness is
+    # already guaranteed upstream by migrate. The frontend waits on this.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   # Drains the ingestion queue. Its own process on purpose: parsing and
   # embedding a large PDF takes far longer than an HTTP request should run for,
@@ -31,15 +74,40 @@ services:
     build: ./backend
     restart: unless-stopped
     depends_on:
-      - db
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
-    # src is not on the path in the image; the app service gets there via
-    # uvicorn's --app-dir, so the worker runs from src instead.
-    working_dir: /app/src
+      # src is not on the path in the image. This replaces the old
+      # working_dir: /app/src, which put the worker in a different directory
+      # from app - and storage paths are relative, so the two disagreed about
+      # where uploads live. Both run from /app now.
+      PYTHONPATH: /app/src
+    working_dir: /app
+    volumes:
+      - document_storage:/app/storage
     command: ["uv", "run", "python", "-m", "worker_main"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the browser bundle at build time, so it belongs here and
+        # not under environment:. The browser runs on the host machine, so it
+        # reaches the API through the published port - "app" is a hostname
+        # only other containers can resolve.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    restart: unless-stopped
+    # Waits for the API to actually answer, not merely to exist. This is what
+    # the app healthcheck was added for.
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
 
 volumes:
   postgres_data:
+  document_storage:
