@@ -74,6 +74,30 @@ creating users. Change the password first, at
 New passwords need at least 8 characters, at least one letter and at least one
 digit.
 
+## Demo data
+
+An empty database has the admin account and nothing else. To get a queryable
+corpus — three users, two cases, assignments and 256 embedded chunks — in about
+twenty seconds:
+
+```bash
+cd backend
+uv run python scripts/seed_demo.py
+```
+
+`--reset` rebuilds it from scratch, `--cleanup` removes it, `--limit N` seeds a
+small subset for a quick check. It only ever touches what it created, so it is
+safe to run against a database that already has real work in it.
+
+The three accounts all share the password printed by the script. Their
+assignments are arranged so the authorization behaviour can be shown rather than
+described: ask the attorney's account a question that only the contract case can
+answer and it refuses, while the partner answers it and cites the source.
+
+Embeddings are real calls to the company gateway, so this needs the VPN. The
+corpus itself ships with the repo at `backend/seed/labor_law_corpus.jsonl` — no
+network fetch, so it works on demo day regardless of whether hrsd.gov.sa is up.
+
 ## The three env files
 
 | file | committed | purpose |
