@@ -42,6 +42,12 @@ The FastAPI application entry point is `backend/src/main.py`; the ingestion
 worker starts from `backend/src/worker_main.py`. Python dependencies and tooling
 configuration (`uv`, `ruff`, `mypy`, `pytest`) live under `backend/`.
 
+## Architecture
+
+See [`docs/architecture.md`](docs/architecture.md) — how the pieces fit
+together, how authentication and authorization work, and the reasoning behind
+the decisions the rest of the code is shaped around. Start here.
+
 ## Setup
 
 **Backend:**
