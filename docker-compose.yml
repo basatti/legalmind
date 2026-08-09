@@ -49,6 +49,15 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
     ports:
       - "8000:8000"
+    # /health is a literal dict - it proves uvicorn is answering, not that the
+    # database is reachable. That is the right scope here: db readiness is
+    # already guaranteed upstream by migrate. The frontend (A3) waits on this.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   # Drains the ingestion queue. Its own process on purpose: parsing and
   # embedding a large PDF takes far longer than an HTTP request should run for,
