@@ -58,7 +58,7 @@ services:
       - document_storage:/app/storage
     # /health is a literal dict - it proves uvicorn is answering, not that the
     # database is reachable. That is the right scope here: db readiness is
-    # already guaranteed upstream by migrate. The frontend (A3) waits on this.
+    # already guaranteed upstream by migrate. The frontend waits on this.
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -89,6 +89,24 @@ services:
     volumes:
       - document_storage:/app/storage
     command: ["uv", "run", "python", "-m", "worker_main"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the browser bundle at build time, so it belongs here and
+        # not under environment:. The browser runs on the host machine, so it
+        # reaches the API through the published port - "app" is a hostname
+        # only other containers can resolve.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    restart: unless-stopped
+    # Waits for the API to actually answer, not merely to exist. This is what
+    # the app healthcheck was added for.
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
 
 volumes:
   postgres_data:
