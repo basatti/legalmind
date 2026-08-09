@@ -155,9 +155,10 @@ export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
 // ---------------------------------------------------------------------------
 // RAG — ask a question, scoped to the user's authorized cases
 //
-// Note: matches the actual backend response (foundation/schemas.py
-// QueryAskResponse / CitationResponse), which returns only document_id and
-// page_number per citation — not filename/chunk_text.
+// Mirrors foundation/schemas.py (QueryAskResponse / CitationResponse). A
+// citation carries the document's name as well as its id, so the UI can show a
+// lawyer the filename they recognise rather than a database key. It does not
+// carry chunk_text.
 // ---------------------------------------------------------------------------
 
 export interface AskRequest {
@@ -166,6 +167,7 @@ export interface AskRequest {
 
 export interface Citation {
   document_id: number;
+  document_name: string;
   page_number: number;
 }
 

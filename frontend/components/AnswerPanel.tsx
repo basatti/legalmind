@@ -1,21 +1,22 @@
-﻿import type { Citation } from "@/types/api";
+import type { Citation } from "@/types/api";
 interface AnswerPanelProps {
   answer: string;
   citations: Citation[];
 }
 
+// Not a link: there is no route or API endpoint that serves a single document,
+// so linking to /documents/:id sent every source to a 404. A citation a lawyer
+// cannot follow is bad; one that promises to be followable and then breaks is
+// worse. Restore the anchor once a document view exists.
 function CitationRow({ citation, index }: { citation: Citation; index: number }) {
   return (
-    <a
-      href={`/documents/${citation.document_id}`}
-      className="flex items-center justify-between py-2 px-3 rounded-md border border-neutral-200 text-sm text-neutral-700 hover:border-neutral-400 hover:bg-neutral-50 transition-colors"
-    >
-      <span>
+    <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-md border border-neutral-200 text-sm text-neutral-700">
+      <span className="min-w-0">
         <span className="text-neutral-400 mr-2">[{index + 1}]</span>
-        Document #{citation.document_id}
+        <span className="break-all">{citation.document_name}</span>
       </span>
-      <span className="text-neutral-400">Page {citation.page_number}</span>
-    </a>
+      <span className="text-neutral-400 shrink-0">Page {citation.page_number}</span>
+    </div>
   );
 }
 

@@ -21,7 +21,9 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      router.push("/");
+      // Straight to the case list. Sending them to "/" landed a signed-in user
+      // on a page whose only message was "Sign in to manage your cases".
+      router.push("/cases");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError("Incorrect email or password.");

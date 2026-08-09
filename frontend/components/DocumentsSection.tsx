@@ -3,19 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { EmptyState, ErrorState, Loading } from "@/components/ui";
+import { formatDate } from "@/lib/format";
 import type { Document } from "@/types/api";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatDate(isoString: string): string {
-  return new Date(isoString).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Single document row
