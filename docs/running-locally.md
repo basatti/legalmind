@@ -47,6 +47,71 @@ Without this terminal, uploads still succeed — the document is stored and
 visible — but its ingestion job sits at `PENDING` for ever and nothing about
 its contents is searchable.
 
+## All at once, with Docker
+
+The three terminals above are the day-to-day way to work. For a demo, or to
+check the stack runs as a unit, compose brings up everything — Postgres,
+migrations, API, worker and frontend — from one command.
+
+**`backend/.env` has to exist first, and two of its values have to be real.**
+`COMPANY_API_URL` and `COMPANY_API_KEY` ship as placeholders in
+`.env.example`; ask the team for the working ones. Without them the app still
+starts and login works, but upload, ingestion and ask all fail — the worker
+cannot reach the embedding gateway.
+
+```bash
+cp backend/.env.example backend/.env   # then fill in the two company values
+docker compose up --build
+```
+
+The first run takes several minutes while the images build; after that it is
+seconds. Addresses are the same as the table below.
+
+What differs from the three-terminal setup:
+
+- **Migrations run themselves.** A one-shot `migrate` service runs
+  `alembic upgrade head` and exits, and `app` and `worker` do not start until
+  it has exited cleanly. It is a separate service on purpose: `app` and
+  `worker` are the same image started at the same moment, so migrating from
+  shared startup code would have both of them racing through the same chain.
+- **The worker is always running**, so uploads become searchable without a
+  third terminal.
+- **Uploads live in a Docker volume**, `document_storage`, mounted into both
+  `app` and `worker`. They are separate containers with separate filesystems,
+  so without that shared volume ingestion fails with a file-not-found even
+  though the upload succeeded.
+
+Stopping:
+
+```bash
+docker compose down      # keeps the database and uploaded documents
+docker compose down -v   # deletes both, permanently
+```
+
+### Langfuse is not part of this
+
+Tracing lives in its own file and is entirely optional — six extra containers
+that the app does not need:
+
+```bash
+docker compose -f docker-compose.langfuse.yml up -d
+```
+
+It declares its own project name, `legalmind-langfuse`, so the two stacks
+cannot share a network or delete each other's containers. They used to: both
+defaulted to the project name `legalmind`, which made `--remove-orphans` on
+either one destructive to the other.
+
+One catch: `LANGFUSE_BASE_URL=http://localhost:3001` only works when the
+backend runs natively. Inside a container `localhost` means that container, so
+a containerised app cannot reach Langfuse that way — it would need
+`http://host.docker.internal:3001`.
+
+A fresh Langfuse database shows a signup screen and issues new API keys. To
+keep the keys already in `backend/.env`, set the `LANGFUSE_INIT_*` variables in
+a root `.env` before the first start — see the list near the top of
+`docker-compose.langfuse.yml`.
+
 ## Where things live
 
 | what | address |
