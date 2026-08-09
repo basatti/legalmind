@@ -10,12 +10,39 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # -h 127.0.0.1 on purpose. On a fresh volume the image runs its setup pass
+    # against a temporary server that listens on the Unix socket only, and a
+    # socket check would report ready while the real server is still starting.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d legalmind"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # Applies the Alembic chain once, then exits. Its own service on purpose:
+  # app and worker are the same image started at the same moment, so migrating
+  # from shared startup code would have both of them racing each other through
+  # the same 15 steps. Everything that touches the schema waits for this to
+  # exit 0. No working_dir override - alembic.ini lives at /app.
+  migrate:
+    build: ./backend
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    # migrations/env.py reads DATABASE_URL directly and raises KeyError when
+    # it is unset. Nothing in the migration path needs the rest of .env.
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
+    command: ["uv", "run", "alembic", "upgrade", "head"]
 
   app:
     build: ./backend
     restart: unless-stopped
     depends_on:
-      - db
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - ./backend/.env
     environment:
@@ -31,7 +58,8 @@ services:
     build: ./backend
     restart: unless-stopped
     depends_on:
-      - db
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - ./backend/.env
     environment:
