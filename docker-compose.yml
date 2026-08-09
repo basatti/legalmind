@@ -49,6 +49,13 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
     ports:
       - "8000:8000"
+    # Uploads land here and the worker reads them back later. Separate
+    # containers do not share a filesystem, so without this the worker's
+    # ingestion job fails with FileNotFoundError and the document is never
+    # searchable. foundation/storage.py writes to the relative path
+    # "storage/documents", which resolves under /app in both services.
+    volumes:
+      - document_storage:/app/storage
     # /health is a literal dict - it proves uvicorn is answering, not that the
     # database is reachable. That is the right scope here: db readiness is
     # already guaranteed upstream by migrate. The frontend (A3) waits on this.
@@ -73,10 +80,16 @@ services:
       - ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
-    # src is not on the path in the image; the app service gets there via
-    # uvicorn's --app-dir, so the worker runs from src instead.
-    working_dir: /app/src
+      # src is not on the path in the image. This replaces the old
+      # working_dir: /app/src, which put the worker in a different directory
+      # from app - and storage paths are relative, so the two disagreed about
+      # where uploads live. Both run from /app now.
+      PYTHONPATH: /app/src
+    working_dir: /app
+    volumes:
+      - document_storage:/app/storage
     command: ["uv", "run", "python", "-m", "worker_main"]
 
 volumes:
   postgres_data:
+  document_storage:
