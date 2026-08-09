@@ -1,26 +1,46 @@
-# legalmind
-A system for CS students to practice.
 # LegalMind
+
+An AI paralegal: lawyers upload case documents, ask questions in natural
+language, and get answers grounded in those documents with citations back to
+the source. It is a co-op training project — the CS concepts are the point, and
+the product is how they get exercised.
 
 ## Structure
 
 ```
 .
-├── main.py          # FastAPI app entry point
-├── Makefile          # run lint/type-check/test from the repo root
-├── backend/            # Python tooling & dependencies (uv, ruff, mypy, pytest)
+├── Makefile              # run lint/type-check/test from the repo root
+├── docker-compose.yml    # db, app, worker
+├── docs/                 # setup, observability, eval results, authorization
+├── backend/              # FastAPI service (uv, ruff, mypy, pytest)
 │   ├── pyproject.toml
 │   ├── uv.lock
-│   ├── src/foundation/
-│   └── tests/
+│   ├── alembic.ini
+│   ├── migrations/       # Alembic schema migrations
+│   ├── evals/            # gold set + recorded eval runs
+│   ├── tests/
+│   └── src/
+│       ├── main.py           # FastAPI app entry point
+│       ├── worker_main.py    # ingestion worker entry point
+│       ├── routers/          # HTTP endpoints
+│       ├── services/         # auth, ingestion, retrieval, answering
+│       ├── repositories/     # database access
+│       ├── graph/            # LangGraph RAG flow
+│       ├── embeddings/       # bge-m3 embedding providers
+│       ├── chunkers/         # document chunking strategies
+│       ├── parsers/          # PDF and document parsing
+│       ├── observability/    # Langfuse tracing
+│       └── foundation/       # models, authorization, permissions, storage
 └── frontend/             # Next.js app (TypeScript, ESLint)
     ├── package.json
-    └── app/
+    ├── app/              # App Router pages
+    ├── components/
+    └── lib/
 ```
 
-`main.py` is the FastAPI application entry point and lives at the repo root.
-Python dependencies and tooling configuration (`uv`, `ruff`, `mypy`,
-`pytest`) live under `backend/`.
+The FastAPI application entry point is `backend/src/main.py`; the ingestion
+worker starts from `backend/src/worker_main.py`. Python dependencies and tooling
+configuration (`uv`, `ruff`, `mypy`, `pytest`) live under `backend/`.
 
 ## Setup
 
