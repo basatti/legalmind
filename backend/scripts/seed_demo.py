@@ -62,6 +62,7 @@ from foundation.models import (  # noqa: E402
     CaseStatus,
     Document,
     DocumentChunk,
+    IngestionJob,
     Role,
     User,
 )
@@ -157,15 +158,42 @@ def cleanup(session: Session, quiet: bool = False) -> None:
     cases = _seeded_cases(session)
     emails = [email for email, _, _ in DEMO_USERS]
 
-    for case in cases:
+    case_ids = [case.id for case in cases]
+    documents = [
+        document
+        for case_id in case_ids
+        for document in session.exec(select(Document).where(Document.case_id == case_id)).all()
+    ]
+
+    # Deleted in dependency order, committing between phases. Interleaving the
+    # phases does not work: a query issued while a delete is still pending
+    # triggers an autoflush, and the half-applied order hits the foreign key it
+    # was about to satisfy.
+    for case_id in case_ids:
         for chunk in session.exec(
-            select(DocumentChunk).where(DocumentChunk.case_id == case.id)
+            select(DocumentChunk).where(DocumentChunk.case_id == case_id)
         ).all():
             session.delete(chunk)
-        for document in session.exec(select(Document).where(Document.case_id == case.id)).all():
-            session.delete(document)
+    session.commit()
+
+    # Documents this script seeded have no ingestion job — their chunks were
+    # written directly. One *uploaded during a demo* does, and the job holds an
+    # FK to the document. Without this the reset aborts at exactly the moment it
+    # is most needed: something went wrong on stage and the fix is one command.
+    for document in documents:
+        for job in session.exec(
+            select(IngestionJob).where(IngestionJob.document_id == document.id)
+        ).all():
+            session.delete(job)
+    session.commit()
+
+    for document in documents:
+        session.delete(document)
+    session.commit()
+
+    for case_id in case_ids:
         for assignment in session.exec(
-            select(Assignment).where(Assignment.case_id == case.id)
+            select(Assignment).where(Assignment.case_id == case_id)
         ).all():
             session.delete(assignment)
     session.commit()
