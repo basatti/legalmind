@@ -1,8 +1,15 @@
 """Tests for the file storage backend."""
 
+import os
+
 import pytest
 
-from foundation.storage import LocalDiskStorage, StorageBackend
+from foundation.storage import (
+    BACKEND_ROOT,
+    LocalDiskStorage,
+    StorageBackend,
+    default_storage_dir,
+)
 
 
 @pytest.fixture
@@ -68,3 +75,45 @@ def test_reading_a_deleted_file_raises(files):
 def test_deleting_a_missing_file_is_harmless(files):
     """delete() is idempotent on purpose — cleanup paths shouldn't explode."""
     files.delete("1/never-existed.pdf")
+
+
+# ---------------------------------------------------------------------------
+# Where the default root resolves to.
+#
+# The API and the ingestion worker are started from different directories, and
+# under compose from different containers. When this root was cwd-relative they
+# got two different trees: uploads landed in one, the worker read the other, and
+# every job failed with a file-not-found that named only the fragment.
+# ---------------------------------------------------------------------------
+
+
+def test_default_storage_dir_is_absolute():
+    assert default_storage_dir().is_absolute()
+
+
+def test_default_storage_dir_does_not_depend_on_cwd(tmp_path, monkeypatch):
+    """The regression that broke ingestion: two processes, two working
+    directories, two different roots."""
+    monkeypatch.delenv("STORAGE_DIR", raising=False)
+
+    monkeypatch.chdir(tmp_path)
+    from_tmp = default_storage_dir()
+
+    monkeypatch.chdir(BACKEND_ROOT)
+    from_backend = default_storage_dir()
+
+    assert from_tmp == from_backend
+
+
+def test_storage_dir_env_var_overrides_the_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("STORAGE_DIR", str(tmp_path))
+
+    assert default_storage_dir() == tmp_path
+
+
+def test_relative_env_override_is_anchored_to_the_backend_root(monkeypatch):
+    """A relative override must not reintroduce cwd-dependence."""
+    monkeypatch.setenv("STORAGE_DIR", os.path.join("var", "uploads"))
+    monkeypatch.chdir(BACKEND_ROOT.parent)
+
+    assert default_storage_dir() == BACKEND_ROOT / "var" / "uploads"

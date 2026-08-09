@@ -109,6 +109,12 @@ until then.
 **An upload never becomes searchable.** The worker is not running — see
 terminal 3.
 
+If the worker *is* running and the job shows `failed` with a file-not-found,
+the API and the worker are writing to and reading from different storage roots.
+Both default to `backend/storage/documents` as an absolute path, so this should
+not happen locally; if they run in separate containers, `STORAGE_DIR` has to
+point both at the same mounted volume.
+
 ## Never do this
 
 Do not run `pytest` from the repo root. It must run from `backend/`. The test
