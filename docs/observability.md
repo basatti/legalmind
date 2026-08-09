@@ -248,6 +248,161 @@ original.
 
 ---
 
+## A worked example: the answer that cites correctly and is still wrong (LEG-88)
+
+The checklist above is the procedure. This is it applied to a real failure, with
+the real numbers, so you know what each step looks like before you need it.
+
+The case is deliberately not a dramatic one. Nothing crashed, nothing was
+hallucinated, no citation was invented, and the answer is a true statement about
+Saudi labour law. Read only the answer and you would approve it. That is exactly
+why it is the case worth learning on — the obvious failures announce themselves,
+and this one does not.
+
+### The complaint
+
+Gold-set item `end-of-service-award-first-five-years`, from run
+`20260808-114513-graph`. The question, in Arabic:
+
+> استقلت بعد ثلاث سنوات، كيف تُحسب مكافأة نهاية الخدمة عن هذه السنوات؟
+>
+> *"I resigned after three years — how is the end-of-service award calculated
+> for those years?"*
+
+The eval marked it `answer_hit: 0`. A lawyer reporting this would say only that
+the answer "doesn't answer the question".
+
+### Step 1 — open the trace and read the metadata
+
+Trace `b5e6f0a0290d809a50ace6ddd8c33487`. Three spans:
+
+| span | nested under | tokens | ms |
+|---|---|---|---|
+| `eval-item[graph]` | — (root) | — | 12,489 |
+| `company-embeddings` | root | 23 in | 3,902 |
+| `company-llm` | root | 729 in / 713 out | 8,529 |
+
+**An eval trace is not shaped like a production trace, and this trips people
+up.** The checklist above describes a `rag-run` root span carrying `scope`,
+`route`, `passages` and `retrieval_passes`. There is no `rag-run` span here:
+`ragas_eval.py` calls `build_graph()` directly rather than going through
+`RagService.ask()`, so the root is `eval-item[graph]` and it carries different
+fields — `input.question`, metadata `{gold_item, lang, mode, round}`, and an
+output of `{context_hit, answer_hit, answered}`.
+
+So on an eval trace, step 1 gives you the scores instead of the routing. Here
+they read `answered: 1`, `context_hit: 1`, `answer_hit: 0`. If you need `route`
+or `retrieval_passes` for a gold-set item, they are in the run's JSON report
+under `evals/results/`, not in Langfuse — this one was `single_shot` with
+`iterations: 0`.
+
+To see the production shape instead, ask through `/query/ask` and open the
+`rag-run` trace, or run `scripts/smoke_test_tracing.py`, which produces one.
+
+### Step 2 — `answered` is true, so there is no `why` to read
+
+The model produced an answer rather than declining. Skip to the passages.
+
+### Steps 3 and 4 — read the Input, and ask whether the answer is in there
+
+Open the nested `company-llm` and read the Input. Five passages were retrieved:
+
+| | article | what it says |
+|---|---|---|
+| `[1]` | المادة الخامسة والثمانون (85) | resignation *reduces* the award — one third for 2–5 years' service |
+| `[2]` | المادة الرابعة والثمانون (84) | the accrual *rate* — half a month's wage for each of the first five years, a full month's wage thereafter |
+| `[3]` | المادة السابعة والثمانون (87) | — |
+| `[4]` | المادة السابعة والسبعون (77) | — |
+| `[5]` | المادة السادسة والثمانون (86) | — |
+
+**This is the fork in step 4, and it goes the way people do not expect.** The
+answer *is* in the passages. Article 84 at `[2]` is the rate the question asks
+for, and `context_hit: 1` records that retrieval did its job. So this is not a
+retrieval problem. Chunking, embeddings and ingestion are all fine, and changing
+any of them would fix nothing.
+
+### Step 5 — the Output is not `NOT_FOUND`
+
+The model answered:
+
+> إذا كان انتهاء علاقة العمل بسبب استقالة العامل، فإنه يستحق ثلث المكافأة إذا
+> كانت مدة خدمته لا تقل عن سنتين متتاليتين ولا تزيد على خمس سنوات **[1]**.
+>
+> *"If the employment relationship ends because of the worker's resignation, they
+> are entitled to one third of the award if their service is no less than two
+> consecutive years and no more than five years [1]."*
+
+Every part of that is true, and `[1]` genuinely says it. The citation is honest:
+the model cited a passage it was given, and the claim matches the passage. The
+citation discipline the prompt enforces held perfectly.
+
+What the answer never states is the **rate** — half a month's wage per year —
+which is the thing "how is it calculated" asks for. The model answered from `[1]`
+and stopped, never combining it with `[2]`.
+
+### Steps 6 and 7 — tokens and latency are unremarkable
+
+729 input tokens is nowhere near a context limit, so nothing was truncated: the
+model saw all five passages. 8.5 s for the generation is normal for this
+gateway. Neither step explains anything here, which is itself informative — it
+rules out the two infrastructure explanations and leaves only the real one.
+
+### The diagnosis
+
+This question needs **two articles composed**: the rate from Article 84,
+*reduced* by the resignation fraction from Article 85. Three years falls inside
+Article 84's first five years, so the rate is half a month's wage per year; and
+three years falls in Article 85's two-to-five band, so resignation earns one
+third of it. Neither article answers the question alone.
+
+The model produced one half of that and presented it as complete. The failure is
+not retrieval, not hallucination, and not citation — it is **composition**, and
+it is invisible to anyone who does not check the answer against the question.
+
+The gold set anticipated exactly this split. From the item's own `notes`:
+
+> this article gives the rate only — the separate reduction for resignation lives
+> in المادة الخامسة والثمانون
+
+### What to do about it
+
+Look at `INSTRUCTIONS` in `services/prompt.py` and notice what is absent. The
+rules say to use only the passages, to cite what is used, and to keep the answer
+under four sentences. **Nothing asks the model to combine passages when a
+question spans more than one.** The model followed every rule it was given.
+
+That makes this a design finding rather than a bug report. Two candidate
+directions, both testable against the gold set:
+
+- **The reason node (LEG-78)**, whose stated job is to decompose multi-step
+  questions and *synthesize across retrieved sets* — exactly the capability
+  missing here. This item is a ready-made regression case for it: it needs two
+  sub-questions ("what is the rate?" and "what does resignation change?") whose
+  answers must then be combined. It is gated behind `RAG_MULTI_STEP_ENABLED`,
+  which is off by default, and the run above was `single_shot`.
+- **The instruction sheet**, which never asks for synthesis at all. A rule about
+  answering from every passage the question needs is a much smaller change than
+  a graph node, and worth measuring before reaching for the larger one.
+
+Whichever is tried, re-run `ragas_eval.py` before and after. `INSTRUCTIONS` is
+shared by every question in the system, and a fix aimed at this one can easily
+cost accuracy on the fourteen that currently pass — which is the entire reason
+LEG-87 tracks results over time.
+
+### What this case teaches
+
+- **`context_hit: 1` with `answer_hit: 0` is the signature of a generation
+  problem.** Both scores are on the trace. Read them together — either alone
+  tells you the wrong thing.
+- **A correct citation is not a correct answer.** `[1]` was cited accurately and
+  the answer was still wrong. Citation checking cannot catch this class of
+  failure; only comparing the answer to the question can.
+- **The most dangerous wrong answers are the plausible ones.** This is what the
+  gold set is for, and why `answer_hit` is a substring check against a required
+  phrase rather than a judgement of whether the answer "looks right".
+
+---
+
 ## What is not traced
 
 - **The ingestion worker.** `worker_main.py` builds its own provider and gets
