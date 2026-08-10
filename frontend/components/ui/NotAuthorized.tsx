@@ -24,8 +24,8 @@ export function NotAuthorized({
         <span className="text-amber-500 text-lg font-medium">✕</span>
       </div>
       <div className="text-center">
-        <p className="text-sm font-medium text-neutral-800">Not Authorized</p>
-        <p className="text-sm text-neutral-500 mt-1">{message}</p>
+        <p className="text-sm font-medium text-foreground">Not Authorized</p>
+        <p className="text-sm text-subtle mt-1">{message}</p>
       </div>
     </div>
   );

@@ -57,17 +57,17 @@ function ChangePasswordForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full max-w-sm flex flex-col gap-4 bg-white border border-neutral-200 rounded-xl shadow-sm p-8"
+      className="w-full max-w-sm flex flex-col gap-4 bg-surface border border-border rounded-xl shadow-sm p-8"
     >
       <div>
-        <h1 className="text-lg font-semibold text-neutral-900">Set a new password</h1>
-        <p className="text-sm text-neutral-500 mt-1">
+        <h1 className="text-lg font-semibold text-foreground">Set a new password</h1>
+        <p className="text-sm text-subtle mt-1">
           You&apos;re using a temporary password. Set a permanent one to continue.
         </p>
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="current-password" className="text-sm text-neutral-600">
+        <label htmlFor="current-password" className="text-sm text-muted">
           Current (temporary) password
         </label>
         <input
@@ -77,12 +77,12 @@ function ChangePasswordForm() {
           autoFocus
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)}
-          className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+          className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="new-password" className="text-sm text-neutral-600">
+        <label htmlFor="new-password" className="text-sm text-muted">
           New password
         </label>
         <input
@@ -91,12 +91,12 @@ function ChangePasswordForm() {
           required
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+          className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="confirm-password" className="text-sm text-neutral-600">
+        <label htmlFor="confirm-password" className="text-sm text-muted">
           Confirm new password
         </label>
         <input
@@ -105,16 +105,16 @@ function ChangePasswordForm() {
           required
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+          className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
         />
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger-fg">{error}</p>}
 
       <button
         type="submit"
         disabled={isSubmitting}
-        className="bg-neutral-900 text-white text-sm rounded-md py-2 hover:bg-neutral-800 transition-colors disabled:opacity-50"
+        className="bg-primary text-primary-foreground text-sm rounded-md py-2 hover:bg-primary-hover transition-colors disabled:opacity-50"
       >
         {isSubmitting ? "Saving…" : "Set new password"}
       </button>

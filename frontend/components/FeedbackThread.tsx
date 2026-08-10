@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { CanDoAny } from "@/components/CanDo";
-import { EmptyState, ErrorState, Loading } from "@/components/ui";
+import { EmptyState, ErrorState, Loading, Section } from "@/components/ui";
 import type { Feedback, Review } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -57,33 +57,33 @@ function FeedbackNode({
   }
 
   return (
-    <div className="pl-4 border-l border-neutral-200">
+    <div className="pl-4 border-l border-border">
       <div className="py-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-neutral-500">User #{node.author_id}</span>
-          <span className="text-xs text-neutral-400">
+          <span className="text-xs font-medium text-subtle">User #{node.author_id}</span>
+          <span className="text-xs text-faint">
             {new Date(node.created_at).toLocaleString()}
           </span>
           {node.resolved && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700">
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-success-bg text-success-fg">
               Resolved
             </span>
           )}
         </div>
-        <p className="text-sm text-neutral-800 mt-1">{node.content}</p>
+        <p className="text-sm text-foreground mt-1">{node.content}</p>
 
         <CanDoAny permissions={["case:edit:any", "case:edit:assigned"]}>
           <div className="flex items-center gap-3 mt-2">
             <button
               onClick={() => setIsReplying((v) => !v)}
-              className="text-xs text-neutral-500 hover:text-neutral-900 transition-colors"
+              className="text-xs text-subtle hover:text-foreground transition-colors"
             >
               Reply
             </button>
             {!node.resolved && (
               <button
                 onClick={markResolved}
-                className="text-xs text-neutral-500 hover:text-neutral-900 transition-colors"
+                className="text-xs text-subtle hover:text-foreground transition-colors"
               >
                 Mark resolved
               </button>
@@ -91,20 +91,20 @@ function FeedbackNode({
           </div>
         </CanDoAny>
 
-        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+        {error && <p className="text-xs text-danger-fg mt-1">{error}</p>}
 
         {isReplying && (
           <div className="mt-2">
             <textarea
               value={replyContent}
               onChange={(e) => setReplyContent(e.target.value)}
-              className="w-full h-20 rounded-md border border-neutral-200 p-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none"
+              className="w-full h-20 rounded-md border border-border p-2 text-sm text-foreground focus:border-border-strong focus:outline-none"
               placeholder="Write a reply..."
             />
             <button
               onClick={submitReply}
               disabled={isSubmitting || replyContent.trim().length === 0}
-              className="mt-1 text-xs rounded-md bg-neutral-900 text-white px-3 py-1.5 hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+              className="mt-1 text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary-hover disabled:opacity-50 transition-colors"
             >
               {isSubmitting ? "Sending…" : "Send reply"}
             </button>
@@ -159,23 +159,40 @@ export function FeedbackThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId, refreshKey]);
 
-  if (isLoading) return <Loading message="Loading review thread…" />;
-  if (error) return <ErrorState message={error} onRetry={load} />;
+  // The waiting states used to render bare on the page background while every
+  // neighbouring block sat in a card, which read as content that had fallen
+  // out of the layout. They get the same frame as everything else.
+  if (isLoading)
+    return (
+      <Section title="Reviews">
+        <Loading message="Loading review thread…" />
+      </Section>
+    );
+  if (error)
+    return (
+      <Section title="Reviews">
+        <ErrorState message={error} onRetry={load} />
+      </Section>
+    );
   if (reviews.length === 0) {
-    return <EmptyState title="No reviews yet" description="This case hasn't been reviewed yet." />;
+    return (
+      <Section title="Reviews">
+        <EmptyState title="No reviews yet" description="This case hasn't been reviewed yet." />
+      </Section>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       {reviews.map((review) => {
         const roots = feedback.filter(
           (f) => f.review_id === review.id && f.parent_id === null
         );
         return (
-          <div key={review.id} className="bg-white border border-neutral-200 rounded-lg px-5 py-4">
-            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-3">
-              Review round — {new Date(review.created_at).toLocaleDateString()}
-            </p>
+          <Section
+            key={review.id}
+            title={`Review round — ${new Date(review.created_at).toLocaleDateString()}`}
+          >
             {roots.map((root) => (
               <FeedbackNode
                 key={root.id}
@@ -185,7 +202,7 @@ export function FeedbackThread({
                 onChanged={load}
               />
             ))}
-          </div>
+          </Section>
         );
       })}
     </div>

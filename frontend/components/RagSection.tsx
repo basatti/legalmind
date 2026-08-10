@@ -5,6 +5,7 @@ import { apiClient, ApiError } from "@/lib/api-client";
 import { CanDoAny } from "@/components/CanDo";
 import { AskForm } from "@/components/AskForm";
 import { AnswerPanel } from "@/components/AnswerPanel";
+import { Section } from "@/components/ui";
 import type { Citation } from "@/types/api";
 
 function RagSectionContent() {
@@ -38,20 +39,19 @@ function RagSectionContent() {
   const notFound = hasAsked && !isLoading && !error && answer === null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-        Ask a question
-      </p>
-      <AskForm
-        onSubmit={handleAsk}
-        isLoading={isLoading}
-        error={error}
-        notFound={notFound}
-      />
-      {!isLoading && !error && answer && (
-        <AnswerPanel answer={answer} citations={citations} />
-      )}
-    </div>
+    <Section title="Ask a question">
+      <div className="flex flex-col gap-4">
+        <AskForm
+          onSubmit={handleAsk}
+          isLoading={isLoading}
+          error={error}
+          notFound={notFound}
+        />
+        {!isLoading && !error && answer && (
+          <AnswerPanel answer={answer} citations={citations} />
+        )}
+      </div>
+    </Section>
   );
 }
 

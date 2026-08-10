@@ -11,14 +11,14 @@ import { usePermission } from "@/lib/usePermission";
 
 function GuestShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <header className="border-b border-neutral-100 px-6 py-4 flex items-center justify-between">
-        <span className="text-sm font-semibold tracking-tight text-neutral-900">
+    <div className="min-h-screen bg-surface flex flex-col">
+      <header className="border-b border-border-subtle px-6 py-4 flex items-center justify-between">
+        <span className="text-sm font-semibold tracking-tight text-foreground">
           LegalMind
         </span>
         <a
           href="/login"
-          className="bg-neutral-900 text-white text-xs rounded-md px-3 py-1.5 hover:bg-neutral-800 transition-colors"
+          className="bg-primary text-primary-foreground text-xs rounded-md px-3 py-1.5 hover:bg-primary-hover transition-colors"
         >
           Sign in
         </a>
@@ -39,7 +39,7 @@ function SideNav() {
   const canAssign = usePermission("case:assign");
 
   return (
-    <nav className="w-52 bg-white border-r border-neutral-100 px-4 py-6 flex flex-col gap-1">
+    <nav className="w-52 bg-surface border-r border-border-subtle px-4 py-6 flex flex-col gap-1">
       {/* Everyone with case access sees Cases */}
       <NavItem href="/cases">Cases</NavItem>
 
@@ -68,23 +68,23 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col">
-      <header className="bg-white border-b border-neutral-100 px-6 py-4 flex items-center justify-between">
-        <span className="text-sm font-semibold tracking-tight text-neutral-900">
+    <div className="min-h-screen bg-surface-subtle flex flex-col">
+      <header className="bg-surface border-b border-border-subtle px-6 py-4 flex items-center justify-between">
+        <span className="text-sm font-semibold tracking-tight text-foreground">
           LegalMind
         </span>
         <div className="flex items-center gap-4">
           {user && (
             <>
-              <span className="text-xs text-neutral-400 capitalize">
+              <span className="text-xs text-faint capitalize">
                 {user.role}
               </span>
-              <span className="text-xs text-neutral-500">{user.email}</span>
+              <span className="text-xs text-subtle">{user.email}</span>
             </>
           )}
           <button
             onClick={handleLogout}
-            className="text-xs text-neutral-500 hover:text-neutral-900 transition-colors"
+            className="text-xs text-subtle hover:text-foreground transition-colors"
           >
             Sign out
           </button>
@@ -92,7 +92,14 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
       </header>
       <div className="flex flex-1">
         <SideNav />
-        <main className="flex-1 px-8 py-6">{children}</main>
+        {/* The shell owns the content column so every page lines up in the
+            same place. Pages that set their own max-width used to disagree -
+            896px on the case list, 448px on Assign - so the frame jumped on
+            each navigation. Pages style their content; the frame is not
+            theirs to pick. */}
+        <main className="flex-1 px-8 py-8">
+          <div className="max-w-4xl mx-auto w-full">{children}</div>
+        </main>
       </div>
     </div>
   );
@@ -103,10 +110,23 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
 // ---------------------------------------------------------------------------
 
 function NavItem({ href, children }: { href: string; children: ReactNode }) {
+  const pathname = usePathname();
+
+  // "/cases" must not light up while you are on "/cases/assign", so the parent
+  // match is deliberately exact. Only the case detail route (/cases/123) rolls
+  // up into Cases, since it has no nav entry of its own.
+  const isActive =
+    pathname === href || (href === "/cases" && /^\/cases\/\d+$/.test(pathname));
+
   return (
     <a
       href={href}
-      className="text-sm text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 px-3 py-2 rounded-md transition-colors"
+      aria-current={isActive ? "page" : undefined}
+      className={`text-sm px-3 py-2 rounded-md transition-colors ${
+        isActive
+          ? "bg-surface-muted text-foreground font-medium"
+          : "text-muted hover:text-foreground hover:bg-surface-subtle"
+      }`}
     >
       {children}
     </a>
@@ -135,8 +155,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <span className="text-sm text-neutral-400">Loading…</span>
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <span className="text-sm text-faint">Loading…</span>
       </div>
     );
   }

@@ -10,12 +10,12 @@ interface AnswerPanelProps {
 // worse. Restore the anchor once a document view exists.
 function CitationRow({ citation, index }: { citation: Citation; index: number }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-md border border-neutral-200 text-sm text-neutral-700">
+    <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-md border border-border text-sm text-muted">
       <span className="min-w-0">
-        <span className="text-neutral-400 mr-2">[{index + 1}]</span>
+        <span className="text-faint mr-2">[{index + 1}]</span>
         <span className="break-all">{citation.document_name}</span>
       </span>
-      <span className="text-neutral-400 shrink-0">Page {citation.page_number}</span>
+      <span className="text-faint shrink-0">Page {citation.page_number}</span>
     </div>
   );
 }
@@ -23,15 +23,15 @@ function CitationRow({ citation, index }: { citation: Citation; index: number })
 export function AnswerPanel({ answer, citations }: AnswerPanelProps) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="bg-white border border-neutral-200 rounded-lg px-5 py-4">
-        <p className="text-sm text-neutral-900 leading-relaxed whitespace-pre-wrap">
+      <div className="bg-surface border border-border rounded-lg px-5 py-4">
+        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
           {answer}
         </p>
       </div>
 
       {citations.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+          <p className="text-xs font-medium text-subtle uppercase tracking-wide">
             Sources
           </p>
           {citations.map((citation, index) => (

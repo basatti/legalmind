@@ -52,15 +52,15 @@ function CreateCaseForm() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-10 flex flex-col gap-8">
-      <h1 className="text-xl font-semibold text-neutral-900">New Case</h1>
+    <div className="flex flex-col gap-8">
+      <h1 className="text-xl font-semibold text-foreground">New Case</h1>
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-4 bg-white border border-neutral-200 rounded-xl shadow-sm p-6"
+        className="flex flex-col gap-4 bg-surface border border-border rounded-xl shadow-sm p-6 max-w-xl"
       >
         <div className="flex flex-col gap-1">
-          <label htmlFor="title" className="text-sm text-neutral-600">
+          <label htmlFor="title" className="text-sm text-muted">
             Title
           </label>
           <input
@@ -69,12 +69,12 @@ function CreateCaseForm() {
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+            className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="description" className="text-sm text-neutral-600">
+          <label htmlFor="description" className="text-sm text-muted">
             Description
           </label>
           <textarea
@@ -82,27 +82,27 @@ function CreateCaseForm() {
             rows={4}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+            className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
           />
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-danger-fg">{error}</p>}
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="bg-neutral-900 text-white text-sm rounded-md py-2 hover:bg-neutral-800 transition-colors disabled:opacity-50"
+          className="bg-primary text-primary-foreground text-sm rounded-md py-2 hover:bg-primary-hover transition-colors disabled:opacity-50"
         >
           {isSubmitting ? "Creating…" : "Create Case"}
         </button>
       </form>
 
       {createdCase && (
-        <div className="bg-white border border-neutral-200 rounded-xl shadow-sm p-4">
-          <p className="text-sm text-neutral-900">
+        <div className="bg-surface border border-border rounded-xl shadow-sm p-4">
+          <p className="text-sm text-foreground">
             Created: <span className="font-medium">{createdCase.title}</span>
           </p>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-subtle mt-1">
             id {createdCase.id} · status {createdCase.status}
           </p>
         </div>

@@ -1,14 +1,140 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Colour tokens
+
+   Components name a colour by its job - surface, border, foreground - and this
+   block decides what that job looks like. The light values are the exact
+   neutrals the app already used, so light mode is unchanged; dark mode is the
+   same set re-pointed. A component written against these needs no dark:
+   variants, and a new one gets dark mode without knowing dark mode exists.
+--------------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
+  /* Chrome */
+  --canvas: #fafafa; /* page background behind the cards */
+  --surface: #ffffff; /* cards, header, sidebar */
+  --surface-subtle: #fafafa; /* hover wash */
+  --surface-muted: #f5f5f5; /* active nav item, neutral badge */
+
+  --border: #e5e5e5;
+  --border-subtle: #f5f5f5;
+  --border-strong: #a3a3a3; /* focus / hover emphasis */
+
+  /* Text, strongest to faintest */
   --foreground: #171717;
+  --muted: #525252;
+  --subtle: #737373;
+  --faint: #a3a3a3;
+
+  /* Primary action */
+  --primary: #171717;
+  --primary-hover: #262626;
+  --primary-foreground: #ffffff;
+
+  /* Status hues: one bg/fg pair per case status, plus feedback colours */
+  --info-bg: #eff6ff;
+  --info-fg: #1d4ed8;
+  --warn-bg: #fefce8;
+  --warn-fg: #a16207;
+  --review-bg: #faf5ff;
+  --review-fg: #7e22ce;
+  --revision-bg: #fff7ed;
+  --revision-fg: #c2410c;
+  --success-bg: #f0fdf4;
+  --success-fg: #15803d;
+  --danger-bg: #fef2f2;
+  --danger-fg: #dc2626;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    color-scheme: dark;
+
+    --canvas: #0a0a0a;
+    --surface: #171717;
+    --surface-subtle: #1f1f1f;
+    --surface-muted: #262626;
+
+    --border: #2e2e2e;
+    --border-subtle: #242424;
+    --border-strong: #525252;
+
     --foreground: #ededed;
+    --muted: #a3a3a3;
+    --subtle: #8f8f8f;
+    --faint: #6b6b6b;
+
+    /* The primary button inverts: near-white fill, dark label. */
+    --primary: #ededed;
+    --primary-hover: #d4d4d4;
+    --primary-foreground: #171717;
+
+    /* Tinted fills go deep rather than pale, so the text can stay light. */
+    --info-bg: #17233a;
+    --info-fg: #93c5fd;
+    --warn-bg: #2e2610;
+    --warn-fg: #fcd34d;
+    --review-bg: #2a1b3d;
+    --review-fg: #d8b4fe;
+    --revision-bg: #331c0d;
+    --revision-fg: #fdba74;
+    --success-bg: #0f2417;
+    --success-fg: #86efac;
+    --danger-bg: #2a1315;
+    --danger-fg: #fca5a5;
+  }
+}
+
+/* `inline` keeps the generated utilities pointing at the variables rather than
+   resolving them at build time - which is what lets the media query above
+   re-theme the whole app without Tailwind emitting a second set of rules. */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-muted: var(--surface-muted);
+
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-faint: var(--faint);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-info-bg: var(--info-bg);
+  --color-info-fg: var(--info-fg);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-fg: var(--warn-fg);
+  --color-review-bg: var(--review-bg);
+  --color-review-fg: var(--review-fg);
+  --color-revision-bg: var(--revision-bg);
+  --color-revision-fg: var(--revision-fg);
+  --color-success-bg: var(--success-bg);
+  --color-success-fg: var(--success-fg);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-fg: var(--danger-fg);
+}
+
+/* Tailwind's Preflight sets `background-color: transparent` on form controls.
+   A closed <select> then looks correct because the page shows through it, but
+   the dropdown popup is painted on its own surface: once an author declares a
+   background, Chrome stops applying its own color-scheme-aware field colour
+   and the popup renders on the default light canvas - white options on a dark
+   page. `color-scheme: dark` is set and working; it just does not survive an
+   author background. Naming the colour explicitly is the fix, and `@layer
+   base` keeps utilities able to override it. */
+@layer base {
+  select,
+  option {
+    background-color: var(--surface);
+    color: var(--foreground);
   }
 }
 
@@ -27,25 +153,16 @@ body {
   display: flex;
   flex-direction: column;
   color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--canvas);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-}
+/* No `* { margin: 0; padding: 0 }` reset and no bare `a { ... }` rule here.
+   Rules written outside a cascade layer outrank every layered rule regardless
+   of specificity, and Tailwind ships its utilities in `@layer utilities` - so
+   a plain `*` selector silently defeats every padding and margin utility, and
+   a bare `a` selector defeats text-* on any link. Tailwind's Preflight already
+   applies border-box, zeroes margins, and sets `a { color: inherit }` from
+   `@layer base`, which stays overridable. */

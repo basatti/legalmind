@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiClient, ApiError } from "@/lib/api-client";
-import { EmptyState, ErrorState, Loading } from "@/components/ui";
+import { EmptyState, ErrorState, Loading, Section } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import type { Document } from "@/types/api";
 
@@ -12,12 +12,12 @@ import type { Document } from "@/types/api";
 
 function DocumentRow({ document }: { document: Document }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-border-subtle last:border-0">
       <div className="flex flex-col">
-        <span className="text-sm font-medium text-neutral-800">
+        <span className="text-sm font-medium text-foreground">
           {document.filename}
         </span>
-        <span className="text-xs text-neutral-500">
+        <span className="text-xs text-subtle">
           Uploaded {formatDate(document.uploaded_at)}
         </span>
       </div>
@@ -88,13 +88,12 @@ export function DocumentsSection({ caseId }: { caseId: number }) {
   }
 
   return (
-    <div className="mt-8">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium text-neutral-800">Documents</h2>
-
+    <Section
+      title="Documents"
+      action={
         <div className="flex flex-col items-end gap-1">
           <label
-            className={`text-sm border border-neutral-200 rounded-md px-3 py-1.5 hover:bg-neutral-50 transition-colors cursor-pointer ${
+            className={`text-sm border border-border rounded-md px-3 py-1.5 hover:bg-surface-subtle transition-colors cursor-pointer ${
               isUploading ? "opacity-50 pointer-events-none" : ""
             }`}
           >
@@ -108,11 +107,11 @@ export function DocumentsSection({ caseId }: { caseId: number }) {
             />
           </label>
           {uploadError && (
-            <p className="text-xs text-red-500">{uploadError}</p>
+            <p className="text-xs text-danger-fg">{uploadError}</p>
           )}
         </div>
-      </div>
-
+      }
+    >
       {isLoading && <Loading message="Loading documents…" />}
 
       {!isLoading && loadError && (
@@ -133,6 +132,6 @@ export function DocumentsSection({ caseId }: { caseId: number }) {
           ))}
         </div>
       )}
-    </div>
+    </Section>
   );
 }

@@ -17,7 +17,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-sm text-neutral-500">Loading…</p>
+        <p className="text-sm text-subtle">Loading…</p>
       </div>
     );
   }

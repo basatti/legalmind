@@ -5,34 +5,10 @@ import Link from "next/link";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth";
 import { CanDo } from "@/components/CanDo";
-import { EmptyState, ErrorState, Loading } from "@/components/ui";
+import { EmptyState, ErrorState, Loading, StatusBadge } from "@/components/ui";
 import { NotAuthorized } from "@/components/ui/NotAuthorized";
 import { RequireAuth } from "@/components/RequireAuth";
-import { CASE_STATUS_LABELS } from "@/types/api";
 import type { Case } from "@/types/api";
-
-// ---------------------------------------------------------------------------
-// Status badge
-// ---------------------------------------------------------------------------
-
-function StatusBadge({ status }: { status: Case["status"] }) {
-  const colors: Record<Case["status"], string> = {
-    draft: "bg-neutral-100 text-neutral-600",
-    in_progress: "bg-blue-50 text-blue-700",
-    submitted_for_review: "bg-yellow-50 text-yellow-700",
-    under_review: "bg-purple-50 text-purple-700",
-    revisions_requested: "bg-orange-50 text-orange-700",
-    closed: "bg-green-50 text-green-700",
-  };
-
-  return (
-    <span
-      className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors[status]}`}
-    >
-      {CASE_STATUS_LABELS[status]}
-    </span>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Case list page
@@ -64,11 +40,11 @@ function CaseListContent() {
   if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-neutral-900">Cases</h1>
-          <p className="text-sm text-neutral-500 mt-0.5">
+          <h1 className="text-xl font-semibold text-foreground">Cases</h1>
+          <p className="text-sm text-subtle mt-0.5">
             {user?.role === "partner" || user?.role === "admin"
               ? "All cases"
               : "Your assigned cases"}
@@ -79,7 +55,7 @@ function CaseListContent() {
         <CanDo permission="case:create">
           <Link
             href="/cases/new"
-            className="bg-neutral-900 text-white text-sm rounded-md px-4 py-2 hover:bg-neutral-800 transition-colors"
+            className="bg-primary text-primary-foreground text-sm rounded-md px-4 py-2 hover:bg-primary-hover transition-colors"
           >
             New case
           </Link>
@@ -97,21 +73,21 @@ function CaseListContent() {
             <Link
               key={c.id}
               href={`/cases/${c.id}`}
-              className="bg-white border border-neutral-200 rounded-lg px-5 py-4 flex items-center justify-between hover:border-neutral-400 transition-colors"
+              className="bg-surface border border-border rounded-lg px-5 py-4 flex items-center justify-between hover:border-border-strong transition-colors"
             >
               <div>
-                <p className="text-sm font-medium text-neutral-900">
+                <p className="text-sm font-medium text-foreground">
                   {c.title}
                 </p>
                 {c.description && (
-                  <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">
+                  <p className="text-xs text-subtle mt-0.5 line-clamp-1">
                     {c.description}
                   </p>
                 )}
               </div>
               <div className="flex items-center gap-3 shrink-0 ml-4">
                 <StatusBadge status={c.status} />
-                <span className="text-neutral-300 text-sm">→</span>
+                <span className="text-faint text-sm">→</span>
               </div>
             </Link>
           ))}

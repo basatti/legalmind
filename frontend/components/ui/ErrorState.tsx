@@ -9,17 +9,17 @@ export function ErrorState({
 }: ErrorStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4">
-      <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
-        <span className="text-red-500 text-lg font-medium">!</span>
+      <div className="w-10 h-10 rounded-full bg-danger-bg flex items-center justify-center">
+        <span className="text-danger-fg text-lg font-medium">!</span>
       </div>
       <div className="text-center">
-        <p className="text-sm font-medium text-neutral-800">Error</p>
-        <p className="text-sm text-neutral-500 mt-1">{message}</p>
+        <p className="text-sm font-medium text-foreground">Error</p>
+        <p className="text-sm text-subtle mt-1">{message}</p>
       </div>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="text-sm text-neutral-600 underline underline-offset-2 hover:text-neutral-900 transition-colors"
+          className="text-sm text-muted underline underline-offset-2 hover:text-foreground transition-colors"
         >
           Try again
         </button>

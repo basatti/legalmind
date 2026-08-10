@@ -23,10 +23,10 @@ export default function Home() {
 
   return (
     <div className="text-center">
-      <h1 className="text-2xl font-semibold text-neutral-900 tracking-tight">
+      <h1 className="text-2xl font-semibold text-foreground tracking-tight">
         LegalMind
       </h1>
-      <p className="text-sm text-neutral-500 mt-2">
+      <p className="text-sm text-subtle mt-2">
         Sign in to manage your cases.
       </p>
     </div>

@@ -3,8 +3,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { RequireAuth } from "@/components/RequireAuth";
 import { CanDo } from "@/components/CanDo";
-import { NotAuthorized } from "@/components/ui";
+import { EmptyState, ErrorState, Loading, NotAuthorized } from "@/components/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { CASE_STATUS_LABELS } from "@/types/api";
 import type { Case, User } from "@/types/api";
 
 export default function AssignCasePage() {
@@ -70,26 +71,30 @@ function AssignCaseForm() {
     }
   }
 
-  if (isLoading) return <p className="text-sm text-neutral-500 max-w-md mx-auto py-10">Loading…</p>;
-  if (loadError) return <p className="text-sm text-red-600 max-w-md mx-auto py-10">{loadError}</p>;
+  if (isLoading) return <Loading message="Loading cases…" />;
+  if (loadError)
+    return <ErrorState message={loadError} onRetry={() => window.location.reload()} />;
 
   return (
-    <div className="max-w-md mx-auto py-10 flex flex-col gap-6">
-      <h1 className="text-xl font-semibold text-neutral-900">Assign Case</h1>
+    <div className="flex flex-col gap-6">
+      <h1 className="text-xl font-semibold text-foreground">Assign Case</h1>
 
       {cases.length === 0 || users.length === 0 ? (
-        <p className="text-sm text-neutral-500">
-          {cases.length === 0
-            ? "No cases exist yet."
-            : "No attorneys or paralegals to assign."}
-        </p>
+        <EmptyState
+          title={cases.length === 0 ? "No cases yet" : "Nobody to assign"}
+          description={
+            cases.length === 0
+              ? "Create a case before assigning it to someone."
+              : "Only attorneys and paralegals can be assigned to a case."
+          }
+        />
       ) : (
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col gap-4 bg-white border border-neutral-200 rounded-xl shadow-sm p-6"
+          className="flex flex-col gap-4 bg-surface border border-border rounded-xl shadow-sm p-6 max-w-xl"
         >
           <div className="flex flex-col gap-1">
-            <label htmlFor="case" className="text-sm text-neutral-600">
+            <label htmlFor="case" className="text-sm text-muted">
               Case
             </label>
             <select
@@ -97,21 +102,25 @@ function AssignCaseForm() {
               required
               value={caseId}
               onChange={(e) => setCaseId(e.target.value)}
-              className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+              className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
             >
               <option value="" disabled>
                 Select a case
               </option>
               {cases.map((c) => (
-                <option key={c.id} value={c.id ?? ""}>
-                  {c.title} ({c.status})
+                // dir="auto" so a title takes its direction from its own first
+                // strong character. Without it an Arabic title followed by a
+                // Latin "(Draft)" gets reordered by the bidi algorithm and the
+                // status appears to jump to the wrong end of the line.
+                <option key={c.id} value={c.id ?? ""} dir="auto">
+                  {c.title} ({CASE_STATUS_LABELS[c.status]})
                 </option>
               ))}
             </select>
           </div>
 
           <div className="flex flex-col gap-1">
-            <label htmlFor="user" className="text-sm text-neutral-600">
+            <label htmlFor="user" className="text-sm text-muted">
               Assign to
             </label>
             <select
@@ -119,7 +128,7 @@ function AssignCaseForm() {
               required
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+              className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
             >
               <option value="" disabled>
                 Select a person
@@ -132,13 +141,13 @@ function AssignCaseForm() {
             </select>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {successMessage && <p className="text-sm text-green-600">{successMessage}</p>}
+          {error && <p className="text-sm text-danger-fg">{error}</p>}
+          {successMessage && <p className="text-sm text-success-fg">{successMessage}</p>}
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="bg-neutral-900 text-white text-sm rounded-md py-2 hover:bg-neutral-800 transition-colors disabled:opacity-50"
+            className="bg-primary text-primary-foreground text-sm rounded-md py-2 hover:bg-primary-hover transition-colors disabled:opacity-50"
           >
             {isSubmitting ? "Assigning…" : "Assign"}
           </button>

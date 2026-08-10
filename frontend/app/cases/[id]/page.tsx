@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { CanDoAny } from "@/components/CanDo";
 import { FeedbackThread } from "@/components/FeedbackThread";
-import { ErrorState, Loading } from "@/components/ui";
+import { ErrorState, Loading, Section, StatusBadge } from "@/components/ui";
 import { NotAuthorized } from "@/components/ui/NotAuthorized";
 import { DocumentsSection } from "@/components/DocumentsSection";
 import { RagSection } from "@/components/RagSection";
@@ -34,27 +34,6 @@ const TRANSITION_PERMISSION_MAP: Record<CaseStatus, Permission[]> = {
   revisions_requested: ["case:review"],
   closed: ["case:close"],
 };
-
-// ---------------------------------------------------------------------------
-// Status badge
-// ---------------------------------------------------------------------------
-
-function StatusBadge({ status }: { status: CaseStatus }) {
-  const colors: Record<CaseStatus, string> = {
-    draft: "bg-neutral-100 text-neutral-600",
-    in_progress: "bg-blue-50 text-blue-700",
-    submitted_for_review: "bg-yellow-50 text-yellow-700",
-    under_review: "bg-purple-50 text-purple-700",
-    revisions_requested: "bg-orange-50 text-orange-700",
-    closed: "bg-green-50 text-green-700",
-  };
-
-  return (
-    <span className={`text-sm font-medium px-3 py-1 rounded-full ${colors[status]}`}>
-      {CASE_STATUS_LABELS[status]}
-    </span>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Transition button
@@ -94,7 +73,7 @@ function TransitionButton({
     <button
       onClick={handleTransition}
       disabled={isLoading}
-      className="text-sm border border-neutral-200 rounded-md px-3 py-1.5 hover:bg-neutral-50 transition-colors disabled:opacity-50"
+      className="text-sm border border-border rounded-md px-3 py-1.5 hover:bg-surface-subtle transition-colors disabled:opacity-50"
     >
       {isLoading ? "…" : `→ ${CASE_STATUS_LABELS[targetStatus]}`}
     </button>
@@ -109,7 +88,7 @@ function TransitionButton({
       ) : (
         button
       )}
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-danger-fg">{error}</p>}
     </div>
   );
 }
@@ -150,85 +129,93 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
   if (isNotAuthorized) return <NotAuthorized />;
   if (error || !caseData) return <ErrorState message={error ?? "Case not found."} />;
 
-  const allowedTransitions = CASE_STATUS_TRANSITIONS[caseData.status];
+  // Filter first, then decide whether the section appears. Testing the
+  // unfiltered list meant "Move to" could render as a titled box with nothing
+  // in it: a case awaiting review offers exactly one transition, and a
+  // reviewer has that one removed because the review panel below performs it.
+  const visibleTransitions = CASE_STATUS_TRANSITIONS[caseData.status].filter(
+    (target) =>
+      !(
+        caseData.status === "submitted_for_review" &&
+        target === "under_review" &&
+        canReview
+      )
+  );
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="flex flex-col gap-4">
       {/* Back */}
       <button
         onClick={() => router.push("/cases")}
-        className="text-sm text-neutral-500 hover:text-neutral-900 mb-6 flex items-center gap-1 transition-colors"
+        className="text-sm text-subtle hover:text-foreground flex items-center gap-1 transition-colors self-start"
       >
         ← Cases
       </button>
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-neutral-900">
+          <h1 className="text-xl font-semibold text-foreground">
             {caseData.title}
           </h1>
-          <p className="text-xs text-neutral-400 mt-1">
+          <p className="text-xs text-faint mt-1">
             Created {formatDate(caseData.created_at)}
           </p>
         </div>
-        <StatusBadge status={caseData.status} />
+        {/* Edit sat in its own titled card below, which gave one link the same
+            visual weight as the whole document collection. It reads as what it
+            is up here: a secondary action on the case. */}
+        <div className="flex items-center gap-4 shrink-0">
+          <CanDoAny permissions={["case:edit:any", "case:edit:assigned"]}>
+            <button
+              onClick={() => router.push(`/cases/${caseData.id}/edit`)}
+              className="text-sm text-subtle hover:text-foreground transition-colors"
+            >
+              Edit
+            </button>
+          </CanDoAny>
+          <StatusBadge status={caseData.status} size="md" />
+        </div>
       </div>
 
-      {/* Description */}
+      {/* Description — the page's own content, so no card around it */}
       {caseData.description && (
-        <div className="bg-white border border-neutral-200 rounded-lg px-5 py-4 mb-4">
-          <p className="text-sm text-neutral-600 leading-relaxed">
-            {caseData.description}
-          </p>
-        </div>
+        <p className="text-sm text-muted leading-relaxed">
+          {caseData.description}
+        </p>
       )}
 
       {/* Status transitions */}
-      {allowedTransitions.length > 0 && (
-        <div className="bg-white border border-neutral-200 rounded-lg px-5 py-4 mb-4">
-          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-3">
-            Move to
-          </p>
+      {visibleTransitions.length > 0 && (
+        <Section title="Move to" variant="plain">
           <div className="flex flex-wrap gap-2">
-            {allowedTransitions
-        .filter((target) =>
-          caseData.status === "submitted_for_review" &&
-          target === "under_review" &&
-          canReview
-            ? false
-            : true
-        )
-        .map((target) => (
-          <TransitionButton
-            key={target}
-            caseId={caseData.id!}
-            targetStatus={target}
-            onSuccess={setCaseData}
-          />
-        ))}
+            {visibleTransitions.map((target) => (
+              <TransitionButton
+                key={target}
+                caseId={caseData.id!}
+                targetStatus={target}
+                onSuccess={setCaseData}
+              />
+            ))}
           </div>
-        </div>
+        </Section>
       )}
 
       {caseData.status === "submitted_for_review" && canReview && (
-        <div className="bg-white border border-neutral-200 rounded-lg px-5 py-4 mb-4">
-          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-3">
-            Review case
-          </p>
-          <p className="text-sm text-neutral-600 mb-3">
+        <Section title="Review case">
+          <p className="text-sm text-muted mb-3">
             As a partner, leave the first review comment and move this case to Under Review.
           </p>
-          <label className="block text-sm font-medium text-neutral-700 mb-2">
+          <label className="block text-sm font-medium text-muted mb-2">
             Feedback
             <textarea
               value={reviewContent}
               onChange={(event) => setReviewContent(event.target.value)}
-              className="mt-2 w-full h-28 rounded-md border border-neutral-200 p-3 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none"
+              className="mt-2 w-full h-28 rounded-md border border-border p-3 text-sm text-foreground focus:border-border-strong focus:outline-none"
               placeholder="Enter review feedback for the attorney..."
             />
           </label>
-          {reviewError && <p className="text-xs text-red-500 mb-3">{reviewError}</p>}
+          {reviewError && <p className="text-xs text-danger-fg mb-3">{reviewError}</p>}
           <button
             onClick={async () => {
               setReviewError(null);
@@ -255,32 +242,15 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
               }
             }}
             disabled={isSubmittingReview || reviewContent.trim().length === 0}
-            className="text-sm rounded-md bg-neutral-900 text-white px-4 py-2 hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+            className="text-sm rounded-md bg-primary text-primary-foreground px-4 py-2 hover:bg-primary-hover disabled:opacity-50 transition-colors"
           >
             {isSubmittingReview ? "Submitting…" : "Submit review"}
           </button>
-        </div>
+        </Section>
       )}
 
       {/* Review thread — every round opened on this case, with replies + resolve */}
-      <div className="mb-4">
-        <FeedbackThread caseId={caseData.id!} refreshKey={threadRefreshKey} />
-      </div>
-
-      {/* Edit — assigned users only */}
-      <CanDoAny permissions={["case:edit:any", "case:edit:assigned"]}>
-        <div className="bg-white border border-neutral-200 rounded-lg px-5 py-4">
-          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-3">
-            Actions
-          </p>
-          <button
-            onClick={() => router.push(`/cases/${caseData.id}/edit`)}
-            className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors"
-          >
-            Edit case details
-          </button>
-        </div>
-      </CanDoAny>
+      <FeedbackThread caseId={caseData.id!} refreshKey={threadRefreshKey} />
 
       <DocumentsSection caseId={caseData.id!} />
 

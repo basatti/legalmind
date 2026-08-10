@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { RequireAuth } from "@/components/RequireAuth";
 import { CanDo } from "@/components/CanDo";
-import { NotAuthorized } from "@/components/ui";
+import { NotAuthorized, SectionLabel } from "@/components/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { Role, User } from "@/types/api";
 
@@ -77,17 +77,17 @@ useEffect(() => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-10 flex flex-col gap-8">
-      <h1 className="text-xl font-semibold text-neutral-900">User Management</h1>
+    <div className="flex flex-col gap-8">
+      <h1 className="text-xl font-semibold text-foreground">User Management</h1>
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-4 bg-white border border-neutral-200 rounded-xl shadow-sm p-6"
+        className="flex flex-col gap-4 bg-surface border border-border rounded-xl shadow-sm p-6 max-w-xl"
       >
-        <h2 className="text-sm font-medium text-neutral-800">Create User</h2>
+        <SectionLabel>Create User</SectionLabel>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="email" className="text-sm text-neutral-600">
+          <label htmlFor="email" className="text-sm text-muted">
             Email
           </label>
           <input
@@ -96,12 +96,12 @@ useEffect(() => {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+            className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="full_name" className="text-sm text-neutral-600">
+          <label htmlFor="full_name" className="text-sm text-muted">
             Full Name
           </label>
           <input
@@ -110,12 +110,12 @@ useEffect(() => {
             required
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+            className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="temporary_password" className="text-sm text-neutral-600">
+          <label htmlFor="temporary_password" className="text-sm text-muted">
             Temporary Password
           </label>
           <input
@@ -124,22 +124,22 @@ useEffect(() => {
             required
             value={temporaryPassword}
             onChange={(e) => setTemporaryPassword(e.target.value)}
-            className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+            className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
           />
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-faint">
             The user must change this on first login.
           </p>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="role" className="text-sm text-neutral-600">
+          <label htmlFor="role" className="text-sm text-muted">
             Role
           </label>
           <select
             id="role"
             value={role}
             onChange={(e) => setRole(e.target.value as Role)}
-            className="border border-neutral-200 rounded-md px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+            className="border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent"
           >
             <option value="admin">Admin</option>
             <option value="partner">Partner</option>
@@ -148,30 +148,30 @@ useEffect(() => {
           </select>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-danger-fg">{error}</p>}
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="bg-neutral-900 text-white text-sm rounded-md py-2 hover:bg-neutral-800 transition-colors disabled:opacity-50"
+          className="bg-primary text-primary-foreground text-sm rounded-md py-2 hover:bg-primary-hover transition-colors disabled:opacity-50"
         >
           {isSubmitting ? "Creating…" : "Create User"}
         </button>
       </form>
 
-      <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-neutral-800">Existing Users</h2>
+      <div className="flex flex-col gap-2 max-w-xl">
+        <SectionLabel>Existing Users</SectionLabel>
         {isLoadingUsers ? (
-          <p className="text-sm text-neutral-500">Loading…</p>
+          <p className="text-sm text-subtle">Loading…</p>
         ) : (
-          <div className="bg-white border border-neutral-200 rounded-xl shadow-sm divide-y divide-neutral-100">
+          <div className="bg-surface border border-border rounded-xl shadow-sm divide-y divide-border-subtle">
             {users.map((u) => (
               <div key={u.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <p className="text-sm text-neutral-900">{u.full_name}</p>
-                  <p className="text-xs text-neutral-500">{u.email}</p>
+                  <p className="text-sm text-foreground">{u.full_name}</p>
+                  <p className="text-xs text-subtle">{u.email}</p>
                 </div>
-                <span className="text-xs uppercase tracking-wide text-neutral-500">
+                <span className="text-xs uppercase tracking-wide text-subtle">
                   {u.role}
                 </span>
               </div>

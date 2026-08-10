@@ -39,12 +39,12 @@ export function AskForm({
           onChange={(e) => setQuestion(e.target.value)}
           disabled={isLoading}
           placeholder="Ask a question about this case..."
-          className="flex-1 rounded-md border border-neutral-200 px-3 py-2 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none disabled:opacity-50"
+          className="flex-1 rounded-md border border-border px-3 py-2 text-sm text-foreground focus:border-border-strong focus:outline-none disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={isLoading || question.trim().length === 0}
-          className="text-sm rounded-md bg-neutral-900 text-white px-4 py-2 hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+          className="text-sm rounded-md bg-primary text-primary-foreground px-4 py-2 hover:bg-primary-hover disabled:opacity-50 transition-colors"
         >
           {isLoading ? "Asking…" : "Ask"}
         </button>
