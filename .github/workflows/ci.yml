@@ -34,22 +34,37 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Install dependencies
+        id: deps
         working-directory: backend
         run: uv sync --extra dev
 
+      # LEG-93 reordered these so a type error could not hide the test results,
+      # but reordering only moves which check gets skipped - a ruff failure
+      # still ended the job with zero tests reported. Each check now runs even
+      # when an earlier one failed, so one run tells you everything that is
+      # broken instead of only the first thing.
+      #
+      # `!cancelled()` rather than `always()`: always() keeps running steps
+      # after someone cancels the run. The extra `steps.deps` guard skips the
+      # checks when the install never succeeded, where all four would fail for
+      # the same uninteresting reason. A failing check still fails the job.
       - name: Lint (ruff)
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         working-directory: backend
         run: uv run ruff check .
 
       - name: Format check (ruff)
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         working-directory: backend
         run: uv run ruff format --check .
 
       - name: Tests (pytest)
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         working-directory: backend
         run: uv run pytest
 
       - name: Type check (mypy)
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' }}
         working-directory: backend
         run: uv run mypy
 
@@ -62,7 +77,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Matches frontend/Dockerfile (node:22-slim). On 20 this job could go
+          # green against a Node the shipped image never runs.
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
