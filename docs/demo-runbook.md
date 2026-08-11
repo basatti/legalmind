@@ -183,8 +183,11 @@ Say these before someone finds them.
 - A citation shows the filename and page, but is not clickable — there is no
   document-view route yet. It was a link to a 404 until recently; a dead link is
   worse than an honest label.
-- The demo runs on seeded data with real embeddings, but nobody has run this
-  against a *clean clone* end to end, and a clean clone needs two credentials
-  pasted in before it can ingest anything.
-- CI does not build the Docker images yet, so a broken Dockerfile would surface
-  here first.
+- The demo runs on seeded data with real embeddings, and a clean clone needs two
+  credentials pasted into `backend/.env` before it can ingest anything —
+  `COMPANY_API_URL` and `COMPANY_API_KEY` ship as placeholders.
+- Answers are scoped to every case the asker may read, not to the case on
+  screen: `/query/ask` takes no case id. So a partner asking from one case can
+  see a citation from another. That is the authorization model working as
+  designed, but the ask box sits inside a case and reads as though it were
+  narrower. Say it before someone asks.

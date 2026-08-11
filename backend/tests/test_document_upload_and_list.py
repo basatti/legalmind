@@ -185,3 +185,30 @@ def test_upload_accepts_file_at_max_size(client, session):
     response = upload_file(client, case.id, filename="exact.pdf", content=max_size_content)
 
     assert response.status_code == 201
+
+
+# ---------------------------------------------------------------------------
+# A nameless upload must never reach the handler's own logic.
+#
+# The route used to guard this with `assert file.filename is not None`, which
+# would have been a 500 rather than a 4xx - and vanishes entirely under
+# `python -O`. It turns out Starlette parses a part with an empty filename as
+# an ordinary string field, so FastAPI rejects it at validation and the assert
+# was unreachable from HTTP. The explicit check replacing it is defence in
+# depth; this test pins the contract that matters either way: a 4xx, never a
+# 500, and no filename reaches storage.
+# ---------------------------------------------------------------------------
+
+
+def test_upload_without_a_filename_is_rejected_before_the_handler(client, session):
+    create_user_and_login(client, session, "partner8@example.com", Role.PARTNER)
+    case = create_case_directly(session)
+
+    response = client.post(
+        f"/cases/{case.id}/documents/",
+        files={"file": ("", b"content", "application/pdf")},
+    )
+
+    print(response.status_code, response.text)
+    assert response.status_code == 422
+    assert response.status_code < 500

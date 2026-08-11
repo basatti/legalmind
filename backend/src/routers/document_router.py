@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlmodel import Session
 
 from foundation.database import get_session
@@ -33,8 +33,25 @@ async def upload_document(
         require_permission(Permission.CASE_EDIT_ANY, Permission.CASE_EDIT_ASSIGNED)
     ),
 ) -> DocumentOut:
+    if not file.filename:
+        # Was an `assert`, which made a multipart part with no filename a 500
+        # rather than a 400 — and asserts are stripped entirely under `python -O`.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Upload is missing a filename",
+        )
+
+    # Reject on the declared size before reading. The service checks the real
+    # length too, and that check is the authoritative one — but it runs after
+    # the whole body is already in memory, so a large upload could exhaust the
+    # container before validation ever got a say.
+    if file.size is not None and file.size > DocumentService.MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File exceeds maximum allowed size of 10 MB",
+        )
+
     content = await file.read()
-    assert file.filename is not None
     document = service.upload_document(case_id, file.filename, content, user)
     return DocumentOut(
         id=document.id,  # type: ignore[arg-type]

@@ -9,6 +9,7 @@ nor a running Ollama.
 
 import pytest
 
+from embeddings.company_api import EmbeddingError
 from embeddings.offline import OfflineEmbeddingProvider
 from foundation.models import (
     EMBEDDING_DIMENSIONS,
@@ -257,3 +258,50 @@ def test_an_empty_authorized_scope_never_needs_the_company_api_credentials(
     print(response.status_code, response.json())
     assert response.status_code == 200
     assert response.json()["answer"] is None
+
+
+# ---------------------------------------------------------------------------
+# Regression: an unreachable gateway must not escape as a 500.
+#
+# The handler caught LLMError but not EmbeddingError, and retrieval embeds the
+# question before the model is ever called - so with the VPN down the *first*
+# failure was the uncaught one. Its message is "Could not reach {api_url}: ...",
+# which is precisely the host detail the generic 503 exists to keep out of a
+# client response.
+# ---------------------------------------------------------------------------
+
+
+class UnreachableEmbeddingProvider(OfflineEmbeddingProvider):
+    """Stands in for the company gateway with the VPN down."""
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        raise EmbeddingError("Could not reach https://gateway.internal/v1: timed out")
+
+
+def test_an_unreachable_embedding_gateway_gives_503_not_500(client, session):
+    create_user_and_login(client, session, "pat@example.com", Role.PARTNER)
+    app.dependency_overrides[get_embedding_provider] = UnreachableEmbeddingProvider
+    app.dependency_overrides[get_llm_provider] = StubLLM
+    try:
+        response = ask(client)
+    finally:
+        app.dependency_overrides.pop(get_embedding_provider, None)
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+    print(response.status_code, response.json())
+    assert response.status_code == 503
+
+
+def test_an_unreachable_gateway_never_names_the_host_in_the_response(client, session):
+    create_user_and_login(client, session, "pat@example.com", Role.PARTNER)
+    app.dependency_overrides[get_embedding_provider] = UnreachableEmbeddingProvider
+    app.dependency_overrides[get_llm_provider] = StubLLM
+    try:
+        response = ask(client)
+    finally:
+        app.dependency_overrides.pop(get_embedding_provider, None)
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+    body = response.text
+    assert "gateway.internal" not in body
+    assert "Could not reach" not in body

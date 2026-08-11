@@ -11,8 +11,9 @@ import { DocumentsSection } from "@/components/DocumentsSection";
 import { RagSection } from "@/components/RagSection";
 import { RequireAuth } from "@/components/RequireAuth";
 import { formatDate } from "@/lib/format";
+import { useAuth } from "@/lib/auth";
 import { usePermission } from "@/lib/usePermission";
-import type { Permission } from "@/lib/permissions";
+import { hasAnyPermission, type Permission } from "@/lib/permissions";
 import {
   CASE_STATUS_LABELS,
   CASE_STATUS_TRANSITIONS,
@@ -104,6 +105,7 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
   const [error, setError] = useState<string | null>(null);
   const [isNotAuthorized, setIsNotAuthorized] = useState(false);
   const canReview = usePermission("case:review");
+  const { user } = useAuth();
   const [reviewContent, setReviewContent] = useState("");
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -133,13 +135,26 @@ function CaseDetailContent({ caseId }: { caseId: number }) {
   // unfiltered list meant "Move to" could render as a titled box with nothing
   // in it: a case awaiting review offers exactly one transition, and a
   // reviewer has that one removed because the review panel below performs it.
+  //
+  // Permission has to be part of the same filter, not just of the button.
+  // `TransitionButton` wraps itself in `CanDoAny`, so counting transitions the
+  // user cannot perform brought the empty box back for six role/status pairs -
+  // a partner on an in-progress case among them, which is the demo path.
   const visibleTransitions = CASE_STATUS_TRANSITIONS[caseData.status].filter(
-    (target) =>
-      !(
-        caseData.status === "submitted_for_review" &&
-        target === "under_review" &&
-        canReview
-      )
+    (target) => {
+      const required = TRANSITION_PERMISSION_MAP[target];
+      const permitted =
+        required.length === 0 ||
+        (user !== null && hasAnyPermission(user.role, required));
+      return (
+        permitted &&
+        !(
+          caseData.status === "submitted_for_review" &&
+          target === "under_review" &&
+          canReview
+        )
+      );
+    }
   );
 
   return (

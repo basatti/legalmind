@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from embeddings.base import EmbeddingProvider
-from embeddings.company_api import CompanyEmbeddingProvider
+from embeddings.company_api import CompanyEmbeddingProvider, EmbeddingError
 from embeddings.lazy import LazyEmbeddingProvider
 from foundation.database import get_session
 from foundation.models import User
@@ -94,12 +94,18 @@ def ask(
 ) -> QueryAskResponse:
     try:
         return service.ask(data.question, user)
-    except LLMError as exc:
+    except (LLMError, EmbeddingError) as exc:
         # The model is unreachable — an outage, not "your documents don't
         # contain the answer". Saying the latter would be a lie a lawyer might
         # act on. The detail is deliberately generic: the provider's own error
         # text can name hosts, models and quotas, none of which belong in a
         # client response.
+        #
+        # EmbeddingError belongs here for the same reason and was the more
+        # urgent of the two: retrieval embeds the question before the model is
+        # ever called, so an unreachable gateway raised it first, and its
+        # message is "Could not reach {api_url}" — the exact leak this handler
+        # exists to prevent, escaping as an unhandled 500.
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="The answering service is temporarily unavailable",
