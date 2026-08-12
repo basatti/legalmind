@@ -60,7 +60,7 @@ function FeedbackNode({
     <div className="pl-4 border-l border-border">
       <div className="py-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-subtle">User #{node.author_id}</span>
+          <span className="text-xs font-medium text-subtle">{node.author_name}</span>
           <span className="text-xs text-faint">
             {new Date(node.created_at).toLocaleString()}
           </span>

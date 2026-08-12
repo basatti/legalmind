@@ -59,6 +59,11 @@ export interface Feedback {
   id: number;
   review_id: number;
   author_id: number;
+  /** Display name of whoever wrote it. The id is what we key on; this is what
+   * a reader sees — "User #29" told a lawyer nothing about who is asking them
+   * to revise a case. Falls back to "Unknown user" server-side when the author
+   * no longer has a row. */
+  author_name: string;
   content: string;
   parent_id: number | null;
   created_at: string;

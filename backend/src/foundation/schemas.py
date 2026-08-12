@@ -6,10 +6,27 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 from foundation.models import CaseStatus, Role
 
+MAX_PASSWORD_BYTES = 72
+"""bcrypt's hard input limit.
+
+bcrypt 5 raises on anything longer rather than truncating it, so a password
+over this length is not a weak password — it is one `hash_password` cannot
+store at all. Checking it here turns that into a 422 naming the field, instead
+of a 500 from deep inside the hashing call.
+
+Measured in *bytes*, not characters: bcrypt counts encoded length, and an
+Arabic password is roughly two bytes per character, so a 40-character one can
+exceed the limit while a 40-character English one is nowhere near it. Counting
+characters would let exactly the passwords this project's users are most likely
+to choose through to the crash.
+"""
+
 
 def _validate_password_rules(value: str) -> str:
     if len(value) < 8:
         raise ValueError("Password must be at least 8 characters long")
+    if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise ValueError(f"Password must be at most {MAX_PASSWORD_BYTES} bytes long")
     if not any(char.isdigit() for char in value):
         raise ValueError("Password must contain at least one digit")
     if not any(char.isalpha() for char in value):
@@ -170,6 +187,19 @@ class FeedbackResponse(BaseModel):
     id: int
     review_id: int
     author_id: int
+    author_name: str
+    """Who wrote it, in the terms a reader recognises.
+
+    `author_id` alone rendered as "User #29" in the thread, which tells a lawyer
+    nothing about who is asking them to revise a case. Same defect LEG-79 fixed
+    for citations when they showed "Document #2" instead of the filename, and the
+    same fix: send the name alongside the id rather than making the reader look
+    it up.
+
+    The id stays because it is what the UI keys and compares on; the name is for
+    reading, not identity.
+    """
+
     content: str
     parent_id: int | None
     created_at: datetime
