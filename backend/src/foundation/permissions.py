@@ -1,5 +1,21 @@
 """Permission definitions and role → permission matrix.
 
+**This module is the only definition of who can do what.** `ROLE_PERMISSIONS`
+below is what every router and service checks against, and
+`frontend/lib/permissions.ts` mirrors it by hand — those two must be changed
+together.
+
+There used to be a second one: a `rolepermission` table, seeded by migration
+126d6a6790ee with a *different* six-permission matrix that nothing ever read,
+plus a `Permission` enum in `foundation/models.py` sharing this module's class
+name. Reading the table to answer "who can do what" gave a wrong answer, and an
+accidental `from foundation.models import Permission` would have type-checked
+clean while authorizing against permissions no role holds. Both were removed in
+migration d246df291c3c. The matrix lives in code on purpose: it is
+security-critical, and code gets review, tests and rollback where a table gets
+an UPDATE statement.
+
+
 Permission checks use set membership:
     required_permission in role_permissions(user.role)  →  O(1)
 
