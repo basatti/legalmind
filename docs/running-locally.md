@@ -192,6 +192,19 @@ password was ever checked. Reserved TLDs such as `.local` are rejected by
 still has `must_change_password` set. Change the password; nothing else works
 until then.
 
+**Login returns 200 but the very next request is 401 — and only when you reach
+the app from another machine.** The browser accepted the login and refused to
+store the cookie. A cookie marked `Secure` is not stored over plain HTTP unless
+the origin is `localhost`, so this appears over a LAN address or a Tailscale
+hostname and never on the machine serving it. `ENVIRONMENT` is set to something
+other than `development` somewhere — check `backend/.env`, then the shell.
+
+**The API refuses to start with "ENVIRONMENT is set to ... which is not a known
+environment".** Exactly what it says: the value is misspelled. Only
+`development` and `production` are accepted, and unset means `development`. The
+guard exists so a typo cannot quietly resolve to the opposite of what was
+intended — see `foundation/settings.py`.
+
 **The frontend renders something stale, or throws an odd module error.** Delete
 `frontend/.next` and restart `npm run dev`. Not worth debugging.
 

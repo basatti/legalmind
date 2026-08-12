@@ -5,10 +5,11 @@ from collections.abc import Callable
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlmodel import Session
 
+from foundation import settings
 from foundation.database import get_session
 from foundation.models import User
 from foundation.permissions import Permission, has_any_permission
-from foundation.rate_limit import check_login_rate_limit
+from foundation.rate_limit import check_login_attempts_for_email, check_login_rate_limit
 from foundation.schemas import (
     ChangePasswordRequest,
     LoginRequest,
@@ -18,7 +19,7 @@ from foundation.schemas import (
 )
 from repositories.session_repository import SessionRepository
 from repositories.user_repository import UserRepository
-from services.auth_service import AuthService
+from services.auth_service import SESSION_TTL_HOURS, AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -129,6 +130,11 @@ def login(
     service: AuthService = Depends(get_auth_service),
 ) -> LoginResponse:
     """Verify credentials, create server-side session, set httpOnly cookie."""
+    # The per-address limit already ran as a dependency. This is the per-account
+    # one, which needs the parsed body -- and which is the limit that actually
+    # bites, since the address is frequently shared. See foundation/rate_limit.
+    check_login_attempts_for_email(data.email)
+
     session_id, must_change_password = service.login(data)
 
     response.set_cookie(
@@ -136,8 +142,17 @@ def login(
         value=session_id,
         httponly=True,  # not accessible via JS -- prevents XSS theft
         samesite="lax",  # CSRF protection for browser requests
-        secure=False,  # set True in production (HTTPS only)
-        max_age=60 * 60 * 24,  # 24 hours, matches SESSION_TTL_HOURS
+        # Read through the module rather than imported by name, so there is one
+        # place to patch in tests and one place that decides -- see
+        # foundation/settings.py for why this is False locally.
+        secure=settings.COOKIE_SECURE,
+        # Derived, not restated. These are two halves of one fact: the server
+        # forgets the session at SESSION_TTL_HOURS and the browser must forget
+        # the cookie at the same moment. Written as a literal they agreed only
+        # by coincidence, and the next edit to the TTL would have produced a
+        # cookie outliving its session -- which presents as sporadic 401s on a
+        # machine that worked an hour ago.
+        max_age=SESSION_TTL_HOURS * 60 * 60,
     )
 
     return LoginResponse(
@@ -165,6 +180,11 @@ def logout(
         key=SESSION_COOKIE_NAME,
         httponly=True,
         samesite="lax",
+        # Not required for deletion -- browsers key a cookie on name/domain/path
+        # and ignore Secure when matching -- but kept in step with the login
+        # cookie so the two calls cannot drift into looking meaningfully
+        # different when they are not.
+        secure=settings.COOKIE_SECURE,
     )
 
     return MessageResponse(message="Logged out successfully")

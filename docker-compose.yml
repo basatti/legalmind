@@ -47,6 +47,10 @@ services:
       - ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/legalmind
+      # Stated rather than left to the default, so the stack does not depend on
+      # what happens to be in someone's .env. Keeps the session cookie usable
+      # over plain HTTP, which is how this stack is always reached.
+      ENVIRONMENT: development
     ports:
       - "8000:8000"
     # Uploads land here and the worker reads them back later. Separate

@@ -98,9 +98,12 @@ def client(session):
 
 @pytest.fixture(autouse=True)
 def reset_rate_limits():
-    from foundation.rate_limit import _login_attempts
+    from foundation.rate_limit import clear_rate_limits
 
-    _login_attempts.clear()
+    # Was reaching into the module's private dict, which broke silently the
+    # moment a second bucket was added. A public reset keeps the fixture
+    # honest about clearing everything.
+    clear_rate_limits()
     yield
 
 
