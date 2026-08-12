@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from foundation.models import Case, Document, User
 from foundation.permissions import Permission, has_permission
 from foundation.storage import storage
+from parsers import is_supported, supported_extensions
 from repositories.assignment_repository import AssignmentRepository
 from repositories.case_repository import CaseRepository
 from repositories.document_repository import DocumentRepository
@@ -13,7 +14,6 @@ from repositories.ingestion_job_repository import IngestionJobRepository
 
 
 class DocumentService:
-    ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg"}
     MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
     def __init__(
@@ -51,11 +51,20 @@ class DocumentService:
             )
 
     def _validate_file(self, filename: str, content: bytes) -> None:
-        extension = os.path.splitext(filename)[1].lower()
-        if extension not in self.ALLOWED_EXTENSIONS:
+        # Ask the parser registry rather than keeping a second list here. This
+        # used to hold its own set — .doc, .docx, .png, .jpg — while the
+        # registry only knows .pdf, so a Word file uploaded cleanly, appeared
+        # on the case, and then died in the worker four retries later where
+        # nobody was looking. The user was never told.
+        #
+        # Registering a new parser now widens the upload gate on its own, which
+        # is the point: these two can no longer drift apart.
+        if not is_supported(filename):
+            extension = os.path.splitext(filename)[1].lower()
+            accepted = ", ".join(supported_extensions())
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File type '{extension}' is not allowed",
+                detail=f"File type '{extension}' is not allowed. Accepted: {accepted}",
             )
         if len(content) > self.MAX_FILE_SIZE_BYTES:
             raise HTTPException(

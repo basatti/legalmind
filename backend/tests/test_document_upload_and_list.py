@@ -164,6 +164,35 @@ def test_upload_rejects_disallowed_file_extension(client, session):
     assert "not allowed" in response.json()["detail"]
 
 
+# ---------------------------------------------------------------------------
+# Regression: a file the parser cannot read must be refused at the door.
+#
+# .docx used to be on an allow-list this service kept for itself, while
+# parsers/registry.py only ever knew .pdf. So a Word file uploaded cleanly,
+# appeared on the case, and died in the worker four retries later - with no
+# feedback at upload time and nothing on screen to say the document would
+# never become searchable.
+#
+# The upload gate now asks the registry, so this stays fixed by construction:
+# the day a DocxParser is registered, this test is the one that tells you the
+# upload gate opened with it.
+# ---------------------------------------------------------------------------
+
+
+def test_upload_rejects_a_file_type_no_parser_can_read(client, session):
+    create_user_and_login(client, session, "partner9@example.com", Role.PARTNER)
+    case = create_case_directly(session)
+
+    response = upload_file(client, case.id, filename="contract.docx")
+
+    print(response.status_code, response.json())
+    assert response.status_code == 400
+    assert ".docx" in response.json()["detail"]
+    # The message has to say what *would* work — the user is the one who has to
+    # pick a different file.
+    assert ".pdf" in response.json()["detail"]
+
+
 def test_upload_rejects_file_exceeding_max_size(client, session):
     create_user_and_login(client, session, "partner6@example.com", Role.PARTNER)
     case = create_case_directly(session)

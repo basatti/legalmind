@@ -31,3 +31,12 @@ def get_parser_for(filename: str) -> Parser:
 def is_supported(filename: str) -> bool:
     """Return True if this file can be parsed — use to skip un-ingestable uploads."""
     return os.path.splitext(filename)[1].lower() in _PARSERS_BY_EXTENSION
+
+
+def supported_extensions() -> list[str]:
+    """Every extension this registry can parse, for callers that have to say so.
+
+    Exists so a rejection message can name what *is* accepted without keeping a
+    second copy of the list — the copy would be the thing that goes stale.
+    """
+    return sorted(_PARSERS_BY_EXTENSION)
