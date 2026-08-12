@@ -80,6 +80,42 @@ def reap_expired_sessions(session: Session, now: datetime) -> None:
         logger.info("deleted %s expired session(s)", deleted)
 
 
+def run_one_cycle(
+    session: Session,
+    worker: IngestionWorker,
+    now: datetime,
+    last_reap: datetime | None,
+) -> tuple[bool, datetime | None]:
+    """One pass of the loop: reclaim, maybe reap, then claim and process a job.
+
+    Split out of `run_forever` because that loop never returns, so nothing it
+    does could be tested — `--cov=worker_main` put the whole body at 53% and
+    made that visible. Everything the loop decides now lives here, where a test
+    can drive a single cycle with a fake worker; `run_forever` keeps only the
+    parts that genuinely cannot be tested, namely the `while`, the sleep and
+    the session lifetime.
+
+    `now` and `last_reap` are passed in and handed back rather than kept as
+    state here, for the same reason `delete_expired` takes `now`: a cycle that
+    reads its own clock cannot be tested without patching time.
+    """
+    # Before claiming, put back anything a dead worker left RUNNING — nothing
+    # else ever will, since only PENDING jobs are claimed. Safe to run from
+    # every worker at once: the sweep skips locked rows.
+    reclaimed = worker.reclaim_stale()
+    if reclaimed:
+        logger.warning("reclaimed %s job(s) abandoned by a dead worker", reclaimed)
+
+    if reap_due(now, last_reap, SESSION_REAP_INTERVAL):
+        # Stamped before the attempt, not after. A sweep that keeps failing
+        # would otherwise be due on every cycle and log the same traceback
+        # every five seconds.
+        last_reap = now
+        reap_expired_sessions(session, now)
+
+    return worker.run_once(), last_reap
+
+
 def run_forever() -> None:
     # Constructed once per process, not once per job. Must be the same model
     # query_router.py uses for questions — vectors from two different models
@@ -99,22 +135,7 @@ def run_forever() -> None:
             pipeline = ParseAndChunkPipeline(session, embedding_provider=embedding_provider)
             worker = IngestionWorker(IngestionJobRepository(session), pipeline)
 
-            # Before claiming, put back anything a dead worker left RUNNING —
-            # nothing else ever will, since only PENDING jobs are claimed. Safe
-            # to run from every worker at once: the sweep skips locked rows.
-            reclaimed = worker.reclaim_stale()
-            if reclaimed:
-                logger.warning("reclaimed %s job(s) abandoned by a dead worker", reclaimed)
-
-            now = datetime.now(UTC)
-            if reap_due(now, last_reap, SESSION_REAP_INTERVAL):
-                # Stamped before the attempt, not after. A sweep that keeps
-                # failing would otherwise be due on every cycle and log the
-                # same traceback every five seconds.
-                last_reap = now
-                reap_expired_sessions(session, now)
-
-            did_work = worker.run_once()
+            did_work, last_reap = run_one_cycle(session, worker, datetime.now(UTC), last_reap)
         finally:
             session.close()
 
