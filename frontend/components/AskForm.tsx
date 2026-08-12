@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { ErrorState, EmptyState, Loading } from "@/components/ui";
 
+/** Deliberately not "about this case".
+ *
+ * POST /query/ask is scoped to every case the user is authorised for, not the
+ * one on screen — see the note in lib/api-client.ts. So an answer can correctly
+ * cite a different case, and the old wording made that look like a scope leak
+ * to anyone watching. The box promises what the endpoint actually does. */
+const QUESTION_PLACEHOLDER = "Ask a question about your cases...";
+
 interface AskFormProps {
   /** Called with the trimmed question text on submit. No API calls happen
    * inside this component — the parent owns fetching. */
@@ -38,7 +46,7 @@ export function AskForm({
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           disabled={isLoading}
-          placeholder="Ask a question about this case..."
+          placeholder={QUESTION_PLACEHOLDER}
           className="flex-1 rounded-md border border-border px-3 py-2 text-sm text-foreground focus:border-border-strong focus:outline-none disabled:opacity-50"
         />
         <button
