@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import useSWR from "swr";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { EmptyState, ErrorState, Loading, Section } from "@/components/ui";
 import { formatDate } from "@/lib/format";
@@ -51,36 +52,38 @@ function rejectionReason(error: ApiError, fallback: string): string {
 // Documents section — upload + list
 // ---------------------------------------------------------------------------
 
+/** Why the read is SWR and the write is not.
+ *
+ * Loading used to be `useEffect` + three `useState`s, which needed two
+ * `eslint-disable` lines: React's `set-state-in-effect` rule objects to the
+ * pattern itself, not to this implementation of it. `useSWR` owns the fetch,
+ * the loading flag and the error, so the suppressions are gone rather than
+ * silenced — and a second mount of the same case serves from cache instead of
+ * refetching.
+ *
+ * Uploading stays hand-written. It is a one-shot action with its own progress
+ * and its own error vocabulary, and the only shared state it touches is the
+ * list, which it updates through `mutate`. */
 export function DocumentsSection({ caseId }: { caseId: number }) {
-  const [documents, setDocuments] = useState<Document[] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    data: documents,
+    error: loadError,
+    isLoading,
+    mutate,
+  } = useSWR<Document[], unknown>(["documents", caseId], () =>
+    apiClient.documents.list(caseId)
+  );
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function loadDocuments() {
-    setIsLoading(true);
-    setLoadError(null);
-    apiClient.documents
-      .list(caseId)
-      .then(setDocuments)
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 403) {
-          setLoadError("You are not authorized to view these documents.");
-        } else {
-          setLoadError("Failed to load documents.");
-        }
-      })
-      .finally(() => setIsLoading(false));
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- known limitation, pending a data-fetching library decision (SWR/TanStack Query) to replace manual loading/error state
-    loadDocuments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId]);
+  const loadErrorMessage =
+    loadError instanceof ApiError && loadError.status === 403
+      ? "You are not authorized to view these documents."
+      : loadError
+        ? "Failed to load documents."
+        : null;
 
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -90,7 +93,13 @@ export function DocumentsSection({ caseId }: { caseId: number }) {
     setUploadError(null);
     try {
       const uploaded = await apiClient.documents.upload(caseId, file);
-      setDocuments((prev) => (prev ? [...prev, uploaded] : [uploaded]));
+      // The response *is* the created document, so appending it is accurate and
+      // instant. `revalidate: false` keeps that a cache write rather than a
+      // round trip — refetching here would ask the server to repeat what it
+      // just told us.
+      await mutate((current) => [...(current ?? []), uploaded], {
+        revalidate: false,
+      });
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 400) {
@@ -143,18 +152,18 @@ export function DocumentsSection({ caseId }: { caseId: number }) {
     >
       {isLoading && <Loading message="Loading documents…" />}
 
-      {!isLoading && loadError && (
-        <ErrorState message={loadError} onRetry={loadDocuments} />
+      {!isLoading && loadErrorMessage && (
+        <ErrorState message={loadErrorMessage} onRetry={() => mutate()} />
       )}
 
-      {!isLoading && !loadError && documents && documents.length === 0 && (
+      {!isLoading && !loadErrorMessage && documents && documents.length === 0 && (
         <EmptyState
           title="No documents yet"
           description="Upload a document to get started."
         />
       )}
 
-      {!isLoading && !loadError && documents && documents.length > 0 && (
+      {!isLoading && !loadErrorMessage && documents && documents.length > 0 && (
         <div>
           {documents.map((doc) => (
             <DocumentRow key={doc.id} document={doc} />

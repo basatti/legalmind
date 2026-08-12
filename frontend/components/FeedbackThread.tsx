@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { CanDoAny } from "@/components/CanDo";
 import { EmptyState, ErrorState, Loading, Section } from "@/components/ui";
@@ -136,28 +137,26 @@ export function FeedbackThread({
   caseId: number;
   refreshKey: number;
 }) {
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [feedback, setFeedback] = useState<Feedback[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // One SWR key for both requests rather than two, because a half-loaded thread
+  // is not a state worth rendering: feedback without its review rounds has
+  // nothing to hang off. Promise.all keeps them parallel, as before.
+  //
+  // `refreshKey` stays in the key so the parent can still force a reload after
+  // it changes the case's status; `mutate` covers refreshes this component
+  // causes itself.
+  const { data, error, isLoading, mutate } = useSWR(
+    ["review-thread", caseId, refreshKey],
+    async () => {
+      const [reviews, feedback] = await Promise.all([
+        apiClient.reviews.list(caseId),
+        apiClient.feedback.list(caseId),
+      ]);
+      return { reviews, feedback };
+    }
+  );
 
-  function load() {
-    setIsLoading(true);
-    setError(null);
-    Promise.all([apiClient.reviews.list(caseId), apiClient.feedback.list(caseId)])
-      .then(([reviewList, feedbackList]) => {
-        setReviews(reviewList);
-        setFeedback(feedbackList);
-      })
-      .catch(() => setError("Failed to load review thread."))
-      .finally(() => setIsLoading(false));
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- known limitation, pending a data-fetching library decision (SWR/TanStack Query) to replace manual loading/error state
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId, refreshKey]);
+  const reviews: Review[] = data?.reviews ?? [];
+  const feedback: Feedback[] = data?.feedback ?? [];
 
   // The waiting states used to render bare on the page background while every
   // neighbouring block sat in a card, which read as content that had fallen
@@ -171,7 +170,7 @@ export function FeedbackThread({
   if (error)
     return (
       <Section title="Reviews">
-        <ErrorState message={error} onRetry={load} />
+        <ErrorState message="Failed to load review thread." onRetry={() => mutate()} />
       </Section>
     );
   if (reviews.length === 0) {
@@ -199,7 +198,7 @@ export function FeedbackThread({
                 node={root}
                 allFeedback={feedback}
                 caseId={caseId}
-                onChanged={load}
+                onChanged={() => mutate()}
               />
             ))}
           </Section>
