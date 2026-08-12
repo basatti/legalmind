@@ -80,26 +80,66 @@ class AnswerService:
             logger.warning("reply cited no passage at all — discarded")
             return Answer.none_found()
 
+        citations, renumbered = self._resolve_citations(cited, passages, reply)
+
         return Answer(
-            text=reply,
-            citations=self._citations(cited, passages),
+            text=renumbered,
+            citations=citations,
             answered=True,
         )
 
     @staticmethod
-    def _citations(numbers: list[int], passages: list[DocumentChunk]) -> tuple[Citation, ...]:
-        """Translate passage numbers into documents and pages, in order, once each.
+    def _resolve_citations(
+        numbers: list[int],
+        passages: list[DocumentChunk],
+        reply: str,
+    ) -> tuple[tuple[Citation, ...], str]:
+        """Translate passage numbers into places to check, and make the markers
+        in the answer agree with the list that is shown beside it.
 
-        Several passages can come from the same page, and a page can be cited
-        repeatedly in one answer; the lawyer needs each place to check listed
-        once, in the order the answer refers to them.
+        Two numbering schemes meet here, and they are not the same one. The
+        model is handed passages numbered 1..N and cites those numbers. What a
+        reader is shown is the deduplicated list of *places* — several passages
+        can come from one page, and one page can be cited repeatedly, so the
+        list is shorter than N and numbered 1..k.
+
+        Left alone, those disagree the moment the model does anything other than
+        cite 1, 2, 3 in order. Observed live: a reply citing passages [1] and
+        [3] rendered under a source list of [1] and [2] — a marker pointing at a
+        source that was not there, next to a source nothing pointed at. For a
+        product whose whole claim is a citation the reader can go and verify,
+        that is not cosmetic.
+
+        So the markers are rewritten to the reader's numbering. Every passage
+        from the same page collapses onto the same new number, which is correct:
+        they are the same place to check.
+
+        Rewriting happens in one pass with a callback rather than repeated
+        replacement, because replacing [3] with [2] and then [2] with something
+        else would rewrite the text this function had just written.
         """
-        unique: dict[tuple[int, int], None] = {}
+        renumber: dict[int, int] = {}
+        unique: dict[tuple[int, int], int] = {}
+
         for number in numbers:
             passage = passages[number - 1]
-            unique[(passage.document_id, passage.page_number)] = None
+            place = (passage.document_id, passage.page_number)
 
-        return tuple(
+            if place not in unique:
+                # First time this page is referred to: it takes the next number
+                # in the list the reader sees.
+                unique[place] = len(unique) + 1
+
+            renumber[number] = unique[place]
+
+        citations = tuple(
             Citation(document_id=document_id, page_number=page_number)
             for document_id, page_number in unique
         )
+
+        def rewrite(match: re.Match[str]) -> str:
+            # Only markers that passed the range check above are remapped;
+            # anything else is left exactly as the model wrote it.
+            return f"[{renumber[int(match.group(1))]}]"
+
+        return citations, _CITATION_MARKER.sub(rewrite, reply)
