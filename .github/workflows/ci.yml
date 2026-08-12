@@ -91,6 +91,13 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      # Before the build, deliberately. A failing test tells you which
+      # behaviour broke; a failing build only tells you it did not compile, and
+      # the build is the slower of the two.
+      - name: Test (vitest)
+        working-directory: frontend
+        run: npm run test
+
       - name: Build (next build)
         working-directory: frontend
         run: npm run build
