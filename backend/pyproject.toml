@@ -94,4 +94,4 @@ ignore_missing_imports = true
 # ---------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --cov=foundation --cov=parsers --cov=chunkers --cov=repositories --cov=services --cov=embeddings --cov=graph --cov=observability --cov-report=term-missing"
+addopts = "-ra --cov=foundation --cov=routers --cov=parsers --cov=chunkers --cov=repositories --cov=services --cov=embeddings --cov=graph --cov=observability --cov=main --cov=worker_main --cov-report=term-missing"
