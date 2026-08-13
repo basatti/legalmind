@@ -33,6 +33,32 @@ def is_supported(filename: str) -> bool:
     return os.path.splitext(filename)[1].lower() in _PARSERS_BY_EXTENSION
 
 
+def content_matches_extension(filename: str, content: bytes) -> bool:
+    """Return True if these bytes look like the type the filename claims to be.
+
+    A name and its contents are unrelated: renaming a file changes nothing
+    inside it, and the extension check above reads only the name. Without this,
+    anything renamed to `.pdf` was accepted, stored, queued, and then failed in
+    the background worker hours later -- where the person who uploaded it, and
+    could have fixed it, never saw the result.
+
+    Only the opening signature is checked, which is a genuine limit worth being
+    clear about: a truncated or corrupt PDF still begins with `%PDF-` and still
+    passes here. This catches the file that was never a PDF at all. Files that
+    are the right type but unreadable for some other reason fail in the worker,
+    and reporting *those* is a separate piece of work.
+    """
+    parser = _PARSERS_BY_EXTENSION.get(os.path.splitext(filename)[1].lower())
+
+    if parser is None:
+        return False
+
+    if not parser.MAGIC_BYTES:
+        return True
+
+    return content.startswith(parser.MAGIC_BYTES)
+
+
 def supported_extensions() -> list[str]:
     """Every extension this registry can parse, for callers that have to say so.
 

@@ -293,6 +293,9 @@ def _normalise(text: str) -> str:
 class PdfParser(Parser):
     """Extracts text from PDF bytes.
 
+    Every PDF begins with ``%PDF-`` followed by its version, which is what
+    makes a renamed file detectable before it is ever accepted.
+
     Two failure modes are worth knowing about:
 
     * Encrypted PDFs. Many are "encrypted" only to restrict printing and open
@@ -302,6 +305,8 @@ class PdfParser(Parser):
       is treated as a failure rather than passing an empty document down the
       pipeline. Handling those needs OCR, which is out of scope here.
     """
+
+    MAGIC_BYTES = b"%PDF-"
 
     def parse(self, content: bytes) -> list[ParsedPage]:
         try:

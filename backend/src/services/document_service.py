@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from foundation.models import Case, Document, User
 from foundation.permissions import Permission, has_permission
 from foundation.storage import storage
-from parsers import is_supported, supported_extensions
+from parsers import content_matches_extension, is_supported, supported_extensions
 from repositories.assignment_repository import AssignmentRepository
 from repositories.case_repository import CaseRepository
 from repositories.document_repository import DocumentRepository
@@ -70,6 +70,26 @@ class DocumentService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File exceeds maximum allowed size of 10 MB",
+            )
+
+        # The check above reads the file's name; this one reads the file. They
+        # are unrelated facts -- renaming a document takes two seconds and
+        # changes nothing inside it -- and until now only the name was ever
+        # consulted. A Word file renamed to .pdf was accepted, stored, queued,
+        # and died in the worker hours later, by which time the only person who
+        # could have fixed it had long since seen a green tick and moved on.
+        #
+        # Deliberately after the extension check, not before: "we don't accept
+        # .docx" is a more useful thing to hear than "these bytes aren't a PDF"
+        # when the file is honestly named.
+        if not content_matches_extension(filename, content):
+            extension = os.path.splitext(filename)[1].lower()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"This file's contents are not a {extension.lstrip('.').upper()}. "
+                    "It may have been renamed from another format."
+                ),
             )
 
     def upload_document(self, case_id: int, filename: str, content: bytes, user: User) -> Document:

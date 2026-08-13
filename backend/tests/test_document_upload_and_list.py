@@ -20,7 +20,18 @@ def assign_user_to_case(session, user_id: int, case_id: int):
     session.commit()
 
 
-def upload_file(client, case_id: int, filename="test.pdf", content=b"fake pdf content"):
+FAKE_PDF = b"%PDF-1.4 not a real document, but it opens like one"
+"""Enough of a PDF to get past the upload gate, and no more.
+
+Uploading only queues an ingestion job -- the worker that would actually parse
+this does not run in these tests -- so the opening signature is the only part
+of the content anything here looks at. It used to read "fake pdf content",
+which stopped working the moment the gate started reading the file instead of
+its name.
+"""
+
+
+def upload_file(client, case_id: int, filename="test.pdf", content=FAKE_PDF):
     return client.post(
         f"/cases/{case_id}/documents/",
         files={"file": (filename, content, "application/pdf")},
@@ -193,6 +204,55 @@ def test_upload_rejects_a_file_type_no_parser_can_read(client, session):
     assert ".pdf" in response.json()["detail"]
 
 
+# ---------------------------------------------------------------------------
+# A name and its contents are unrelated facts. Renaming a file takes two
+# seconds and changes nothing inside it, and until now only the name was read.
+# ---------------------------------------------------------------------------
+
+
+def test_upload_rejects_a_renamed_file_that_is_not_really_a_pdf(client, session):
+    create_user_and_login(client, session, "partner10@example.com", Role.PARTNER)
+    case = create_case_directly(session)
+
+    # What a Word file actually starts with: it is a zip archive.
+    renamed_word_file = b"PK\x03\x04\x14\x00\x06\x00 [the rest of a .docx]"
+
+    response = upload_file(client, case.id, filename="contract.pdf", content=renamed_word_file)
+
+    print(response.status_code, response.json())
+    assert response.status_code == 400
+    assert "renamed" in response.json()["detail"]
+
+
+def test_a_rejected_file_is_never_stored_or_queued(client, session):
+    """The rejection has to happen before anything is written down.
+
+    A file that got as far as a document row and a queued job would show on the
+    case as though it were there, which is the failure this whole check exists
+    to prevent -- just moved earlier.
+    """
+    create_user_and_login(client, session, "partner11@example.com", Role.PARTNER)
+    case = create_case_directly(session)
+
+    upload_file(client, case.id, filename="contract.pdf", content=b"not a pdf at all")
+
+    listed = client.get(f"/cases/{case.id}/documents/")
+    print(f"documents on the case after the rejected upload -> {listed.json()}")
+    assert listed.json() == []
+
+
+def test_a_real_pdf_still_uploads(client, session, minimal_pdf_bytes):
+    """The gate has to let a genuine file through -- proven with real PDF bytes
+    rather than the shortened stand-in the other tests use."""
+    create_user_and_login(client, session, "partner12@example.com", Role.PARTNER)
+    case = create_case_directly(session)
+
+    response = upload_file(client, case.id, filename="real.pdf", content=minimal_pdf_bytes)
+
+    print(f"upload of a genuine PDF -> {response.status_code}")
+    assert response.status_code == 201
+
+
 def test_upload_rejects_file_exceeding_max_size(client, session):
     create_user_and_login(client, session, "partner6@example.com", Role.PARTNER)
     case = create_case_directly(session)
@@ -209,7 +269,11 @@ def test_upload_accepts_file_at_max_size(client, session):
     create_user_and_login(client, session, "partner7@example.com", Role.PARTNER)
     case = create_case_directly(session)
 
-    max_size_content = b"x" * (10 * 1024 * 1024)  # exactly 10 MB
+    # Exactly 10 MB, and opening like a PDF -- otherwise this passes the size
+    # check and is then refused by the content check, which would make a test
+    # about the size boundary quietly stop being about the size boundary.
+    max_size_content = FAKE_PDF + b"x" * (10 * 1024 * 1024 - len(FAKE_PDF))
+    assert len(max_size_content) == 10 * 1024 * 1024
 
     response = upload_file(client, case.id, filename="exact.pdf", content=max_size_content)
 

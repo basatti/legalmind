@@ -6,7 +6,12 @@ cases, storage, or embeddings.
 
 from parsers.base import ParsedPage, Parser, ParserError, UnsupportedFileTypeError
 from parsers.pdf_parser import PdfParser
-from parsers.registry import get_parser_for, is_supported, supported_extensions
+from parsers.registry import (
+    content_matches_extension,
+    get_parser_for,
+    is_supported,
+    supported_extensions,
+)
 
 __all__ = [
     "ParsedPage",
@@ -14,6 +19,7 @@ __all__ = [
     "ParserError",
     "PdfParser",
     "UnsupportedFileTypeError",
+    "content_matches_extension",
     "get_parser_for",
     "is_supported",
     "supported_extensions",

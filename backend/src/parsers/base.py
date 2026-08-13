@@ -36,6 +36,20 @@ class ParsedPage:
 class Parser(ABC):
     """Common interface for turning raw document bytes into text."""
 
+    MAGIC_BYTES: bytes = b""
+    """The bytes a file of this type starts with, or empty if it has no signature.
+
+    Lives on the parser rather than at the upload gate for the same reason the
+    gate asks `is_supported()` instead of keeping its own list of extensions:
+    the parser is the thing that knows what it can read, and a second copy of
+    that knowledge elsewhere is the copy that goes stale. Registering a new
+    parser brings its signature along automatically.
+
+    Empty means "this type has no reliable signature", and imposes no check.
+    That is the honest default -- a format without a fixed opening (plain text,
+    CSV) must not be rejected for failing to have one.
+    """
+
     @abstractmethod
     def parse(self, content: bytes) -> list[ParsedPage]:
         """Extract text from document bytes, one entry per page.

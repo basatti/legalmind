@@ -8,6 +8,7 @@ from parsers import (
     ParserError,
     PdfParser,
     UnsupportedFileTypeError,
+    content_matches_extension,
     get_parser_for,
     is_supported,
 )
@@ -200,3 +201,28 @@ def test_registry_rejects_a_file_with_no_extension() -> None:
 def test_is_supported_answers_without_raising() -> None:
     assert is_supported("contract.pdf") is True
     assert is_supported("evidence_photo.png") is False
+
+
+def test_content_matching_reads_the_bytes_not_the_name() -> None:
+    """The signature lives on the parser, so the registry can answer this at all."""
+    assert content_matches_extension("contract.pdf", b"%PDF-1.7\n...") is True
+    # What a .docx really is: a zip archive, wearing a .pdf name.
+    assert content_matches_extension("contract.pdf", b"PK\x03\x04...") is False
+
+
+def test_content_matching_refuses_a_type_with_no_parser() -> None:
+    """Nothing can vouch for bytes belonging to a type nothing can read."""
+    assert content_matches_extension("evidence_photo.png", b"\x89PNG\r\n") is False
+
+
+def test_content_matching_is_not_fooled_by_a_signature_in_the_middle() -> None:
+    """Only the opening counts. A PDF header further in is not a PDF."""
+    assert content_matches_extension("contract.pdf", b"junk then %PDF-1.4") is False
+
+
+def test_a_parser_with_no_signature_imposes_no_check() -> None:
+    """An honest default: a format with no fixed opening must not be rejected
+    for failing to have one. PdfParser has a signature; the base class does not.
+    """
+    assert Parser.MAGIC_BYTES == b""
+    assert PdfParser.MAGIC_BYTES == b"%PDF-"
