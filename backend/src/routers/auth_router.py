@@ -211,11 +211,18 @@ def change_password(
     data: ChangePasswordRequest,
     user: User = Depends(current_user),
     service: AuthService = Depends(get_auth_service),
+    session_id: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
 ) -> MessageResponse:
-    """Change the current user's password.
+    """Change the current user's password, ending every other session for it.
 
     Works even if must_change_password is True -- this is how a user
     clears that flag after being given a temporary password by an admin.
+
+    The cookie is read a second time here, having already been read by
+    `current_user`, because the service needs the session's *identity* and not
+    just the person it resolves to. Declared optional to match `logout` and the
+    dependency above, though in practice it cannot be missing: `current_user`
+    runs first and refuses a request without it.
     """
-    service.change_password(user, data)
+    service.change_password(user, data, current_session_id=session_id)
     return MessageResponse(message="Password changed successfully")

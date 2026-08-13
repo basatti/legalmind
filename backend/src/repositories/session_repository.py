@@ -24,6 +24,35 @@ class SessionRepository:
             self.session.delete(session_model)
             self.session.commit()
 
+    def delete_for_user(self, user_id: int, keep_session_id: str | None) -> int:
+        """Delete every session belonging to `user_id`, sparing one. Returns how many.
+
+        `keep_session_id` is the session making the request that triggered this.
+        Changing a password is the case that needs it: the point is to evict
+        whoever else is holding a session, and evicting the person doing the
+        evicting as well would throw a new user straight back to the login
+        screen in the middle of setting their first real password.
+
+        Passing `None` spares nothing and clears the account out entirely. It is
+        the safer direction of the two, so it is what an unset value means
+        rather than something a caller has to ask for -- but the parameter has
+        no default, because "am I keeping this session or not" is a question
+        every caller should have to answer out loud.
+        """
+        statement = select(SessionModel).where(col(SessionModel.user_id) == user_id)
+
+        if keep_session_id is not None:
+            statement = statement.where(col(SessionModel.id) != keep_session_id)
+
+        doomed = list(self.session.exec(statement).all())
+
+        for session_model in doomed:
+            self.session.delete(session_model)
+
+        self.session.commit()
+
+        return len(doomed)
+
     def delete_expired(self, now: datetime) -> int:
         """Remove every session that expired before `now`. Returns how many.
 

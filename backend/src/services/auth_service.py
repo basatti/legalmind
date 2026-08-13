@@ -166,11 +166,30 @@ class AuthService:
     # Change password (LEG-21) -- required on first login, or any time after
     # ------------------------------------------------------------------
 
-    def change_password(self, user: User, data: ChangePasswordRequest) -> None:
-        """Verify the current password, then set the new one.
+    def change_password(
+        self,
+        user: User,
+        data: ChangePasswordRequest,
+        current_session_id: str | None,
+    ) -> None:
+        """Verify the current password, set the new one, and evict every other session.
 
         Clears must_change_password so the user is no longer forced
         to change it again.
+
+        The eviction is the part that is easy to leave out, and leaving it out
+        is worse than not offering the feature. A password is how someone *asks
+        for* a session; it is not stored in one and never looked at again after
+        login. So changing it stopped future logins with the old password and
+        did nothing whatsoever to sessions already handed out -- which means
+        someone who changed their password because they believed another person
+        was in their account was told "Password changed successfully" while that
+        person carried on reading case files until the 24-hour expiry. The wrong
+        answer here is not a missing feature, it is false reassurance.
+
+        `current_session_id` is spared, so the person doing this stays logged in
+        -- see `SessionRepository.delete_for_user` for why that is not merely a
+        convenience.
         """
         if not verify_password(data.current_password, user.hashed_password):
             raise HTTPException(
@@ -181,3 +200,10 @@ class AuthService:
         user.hashed_password = hash_password(data.new_password)
         user.must_change_password = False
         self.user_repository.update(user)
+
+        # After the write, not before: if this somehow fails, the password has
+        # still genuinely changed, and the sessions it did not reach are the
+        # ones that were already going to expire on their own. The reverse order
+        # would evict everybody and then possibly not change the password.
+        assert user.id is not None
+        self.session_repository.delete_for_user(user.id, keep_session_id=current_session_id)
