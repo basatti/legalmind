@@ -119,6 +119,78 @@ def test_temp_password_user_can_still_logout(client, session):
     assert response.status_code == 200
 
 
+def test_switched_off_account_loses_a_live_session(client, session):
+    """The bug this test exists for: an account switched off mid-session kept working.
+
+    `login` checked `is_active` and nothing after it did, so the check only ever
+    ran on the way in. Anyone already holding a session carried on reading cases
+    and asking questions until the 24-hour expiry.
+    """
+    user_id = create_user_and_login(client, session, "leaver@example.com", Role.ATTORNEY)
+
+    # The session works while the account is on.
+    assert client.get("/auth/me").status_code == 200
+
+    # Switch the account off, which today means editing the row by hand --
+    # there is no endpoint for it yet. That is exactly why nobody noticed.
+    user = session.get(User, user_id)
+    user.is_active = False
+    session.add(user)
+    session.commit()
+
+    # Same client, same cookie, nothing re-sent -- and now refused.
+    blocked = client.get("/auth/me")
+    print(f"GET /auth/me after switching the account off -> {blocked.status_code}")
+    assert blocked.status_code == 401
+
+    # Not just /auth/me. A route carrying real case data is the one that matters.
+    cases = client.get("/cases/")
+    print(f"GET /cases/ after switching the account off -> {cases.status_code}")
+    assert cases.status_code == 401
+
+
+def test_rejected_session_row_is_deleted(client, session):
+    """Rejecting the session also removes it, like the expired branch does."""
+    user_id = create_user_and_login(client, session, "leaver2@example.com", Role.ATTORNEY)
+    session_id = client.cookies["session_id"]
+
+    assert session.get(SessionModel, session_id) is not None
+
+    user = session.get(User, user_id)
+    user.is_active = False
+    session.add(user)
+    session.commit()
+
+    client.get("/auth/me")
+
+    # The row can never be used again, so it does not wait for the reaper.
+    session.expire_all()
+    assert session.get(SessionModel, session_id) is None
+
+
+def test_switched_off_account_cannot_log_in_again(client, session):
+    """The other half of the story, and why the two return different codes.
+
+    Logging in is a request to be let in, and gets told why it was refused.
+    Presenting a dead session is not, and gets the same 401 as any other
+    credential that no longer identifies anybody.
+    """
+    user_id = create_user_and_login(client, session, "leaver3@example.com", Role.ATTORNEY)
+
+    user = session.get(User, user_id)
+    user.is_active = False
+    session.add(user)
+    session.commit()
+
+    response = client.post(
+        "/auth/login",
+        json={"email": "leaver3@example.com", "password": "password123"},
+    )
+    print(f"POST /auth/login for a switched-off account -> {response.status_code}")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Account is inactive"
+
+
 def test_login_rate_limit(client, session):
     create_user_and_login(client, session, "ratelimit@example.com", Role.ATTORNEY)
     # create_user_and_login already used 1 login attempt, so 4 more fit under the limit

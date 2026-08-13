@@ -97,7 +97,8 @@ class AuthService:
     def get_user_from_session(self, session_id: str) -> User:
         """Resolve a session id to its User.
 
-        Raises HTTP 401 if the session is missing or expired.
+        Raises HTTP 401 if the session is missing, expired, or belongs to an
+        account that has since been switched off.
         """
         session = self.session_repository.get_by_id(session_id)
 
@@ -120,6 +121,43 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found",
+            )
+
+        if not user.is_active:
+            # The same check `login` makes, made again on every request.
+            #
+            # Reading it only at login meant switching an account off did
+            # nothing to anyone already holding a session: the row stays valid,
+            # this lookup keeps handing the user back, and they carry on working
+            # until the 24-hour expiry runs out on its own. A switch that is
+            # only read once is not a switch, it is a note about the past.
+            #
+            # 401 rather than the 403 `login` returns, because the two are
+            # answering different questions. At login the client is asking to be
+            # let in and can be told why it was refused. Here the client is
+            # presenting a credential that no longer identifies anyone allowed
+            # in -- the same situation as the expired session above, which is
+            # why it gets the same answer.
+            #
+            # What the frontend does with it is only half joined up, and the
+            # gap is there rather than here: `AuthProvider` reads the session
+            # once on mount, so a 401 from *this* branch sends someone to the
+            # login page on their next page load, while a 401 from a call made
+            # by an already-open page surfaces as an error state instead. The
+            # door is shut either way -- every request is refused from this
+            # moment on -- but the person is not told why until they reload.
+            # Fixing that means teaching the API client to clear the user on
+            # any 401, and it is a frontend change, not a reason to pick a
+            # different status code here.
+            #
+            # The row is deleted for the same reason the expired branch deletes
+            # its own: it can never be used again, so leaving it for the reaper
+            # to find an hour later serves nobody. Only this session goes -- the
+            # account's others die the same way the moment they are used.
+            self.session_repository.delete(session_id)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account is inactive",
             )
 
         return user
