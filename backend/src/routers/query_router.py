@@ -9,6 +9,7 @@ from embeddings.lazy import LazyEmbeddingProvider
 from foundation.database import get_session
 from foundation.models import User
 from foundation.permissions import Permission
+from foundation.rate_limit import check_ask_rate_limit
 from foundation.schemas import QueryAskRequest, QueryAskResponse
 from observability import Tracer, build_tracer
 from repositories.assignment_case_reader import AssignmentCaseReader
@@ -92,6 +93,13 @@ def ask(
         require_permission(Permission.CASE_READ_ANY, Permission.CASE_READ_ASSIGNED)
     ),
 ) -> QueryAskResponse:
+    # The first thing the handler does, because everything after it spends
+    # money: retrieval embeds the question through the company gateway before
+    # the model is called at all. The dependencies resolved above are free --
+    # both providers are lazy and build nothing until used.
+    assert user.id is not None
+    check_ask_rate_limit(user.id)
+
     try:
         return service.ask(data.question, user)
     except (LLMError, EmbeddingError) as exc:

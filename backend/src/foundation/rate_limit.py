@@ -1,7 +1,12 @@
-"""Rate limiting for login attempts.
+"""Rate limiting for the endpoints where an unbounded number of calls costs something.
 
-Two buckets, deliberately asymmetric, because they defend different things and
-only one of them can be trusted to identify anybody.
+Three activities are counted, and they are counted against different things
+because only some callers can be identified.
+
+The two login buckets came first and are the awkward ones, since a request
+arriving at the login page has not proved who it is yet. The two later buckets
+guard endpoints that run *after* authentication, so they can key on the user id
+and simply be right about who is calling -- see "Per user" at the end.
 
 **Per email — the tight one.** Many attempts naming one account is password
 guessing, and the account name is stated in the request, so this works no
@@ -24,6 +29,26 @@ NAT rewrites the source address without adding a header, so there is nothing to
 recover. Believing that header without a proxy in front would be strictly worse
 than the socket address, since any client can set it and rotate past a per-IP
 limit at will.
+
+**Per user — the two that know exactly who they are talking to.** Both guard
+authenticated endpoints, so the caller has already been resolved to a row in
+the user table and the identity problem above simply does not arise.
+
+- *Password changes.* `/auth/change-password` takes the current password, and
+  before this nothing counted the guesses. Anyone holding a borrowed session
+  could run a common-password list against it at whatever rate the network
+  allowed, and a hit takes the account outright. Login has been counted since
+  LEG-22; this is the same activity -- proving you know a password -- reached
+  through a different door, so it gets the same allowance.
+
+- *Questions.* `/query/ask` is the only endpoint in this application that costs
+  real money to serve: one embedding call plus one or more model calls to the
+  company gateway, on hardware other teams share. Every other route reads rows
+  and returns them. The realistic threat is not malice but a frontend retry
+  loop, which can call it thousands of times a minute while nobody is watching
+  -- so the limit is set far above what a person reading answers could ever
+  reach, where hitting it means something is broken rather than someone is
+  impatient.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -44,6 +69,30 @@ enough that a demo with several people signing in does not lock the room out,
 which the previous value of 5 genuinely did.
 """
 
+MAX_PASSWORD_CHANGES_PER_USER = 5
+"""Change-password attempts by one account, per window.
+
+The same number as `MAX_ATTEMPTS_PER_EMAIL` and for the same reason: both count
+attempts to prove knowledge of a password, and there is no reading of "normal
+use" under which a person needs a sixth try inside a minute.
+
+Successful changes are counted too, rather than only failures. Counting only
+failures would mean a caller who alternates a wrong guess with something that
+succeeds never accumulates, and nobody legitimately changes their password five
+times in a minute, so the simpler rule costs nothing.
+"""
+
+MAX_QUESTIONS_PER_USER = 10
+"""Questions asked by one account, per window.
+
+Deliberately generous. A lawyer asks, reads the answer, thinks, and asks again
+-- two or three a minute is a hurried person, and ten is a number no one
+reading answers will reach. A retry loop reaches it in well under a second.
+
+Set so that hitting it carries information: this limit tripping means something
+is wrong, not that someone is working hard.
+"""
+
 _FORGET_ABOVE_KEYS = 1024
 """Sweep stale keys once the table grows past this.
 
@@ -52,8 +101,10 @@ bound; sweeping on every request instead would be O(keys) per login for no
 benefit at the sizes anyone here will ever see.
 """
 
-# key -> timestamps of recent attempts. Keys are namespaced ("ip:" / "email:")
-# so an address can never collide with an account name.
+# key -> timestamps of recent attempts. Keys are namespaced ("ip:", "email:",
+# "password-change:", "ask:") so that no two buckets can ever collide -- an
+# address cannot look like an account name, and a user id counted for questions
+# is a different key from the same user id counted for password changes.
 #
 # In-memory, so it resets on restart and is per-process: with several API
 # replicas the effective limit is the configured one times the replica count.
@@ -105,17 +156,22 @@ def _register(key: str, limit: int, now: datetime) -> bool:
     return False
 
 
+def _rejection(detail: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)
+
+
 def _too_many() -> HTTPException:
-    """One message for both buckets.
+    """One message for both login buckets.
 
     Saying which limit was hit would tell an attacker whether the account they
     named is the one drawing attention, which is the same reasoning that makes
     a wrong email and a wrong password return an identical 401.
+
+    The per-user buckets below say plainly what they are, because that reasoning
+    does not reach them: their caller has already authenticated as the account
+    in question and learns nothing from the answer that it did not supply.
     """
-    return HTTPException(
-        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail="Too many login attempts. Please try again later.",
-    )
+    return _rejection("Too many login attempts. Please try again later.")
 
 
 def check_login_rate_limit(request: Request) -> None:
@@ -136,3 +192,31 @@ def check_login_attempts_for_email(email: str) -> None:
 
     if _register(key, MAX_ATTEMPTS_PER_EMAIL, datetime.now(UTC)):
         raise _too_many()
+
+
+def check_password_change_rate_limit(user_id: int) -> None:
+    """Per-account limit on change-password attempts.
+
+    Called from the handler rather than as a dependency to avoid a circular
+    import: knowing the user means depending on `current_user`, which lives in
+    `routers/auth_router`, which imports this module.
+    """
+    if _register(f"password-change:{user_id}", MAX_PASSWORD_CHANGES_PER_USER, datetime.now(UTC)):
+        raise _rejection("Too many password change attempts. Please try again later.")
+
+
+def check_ask_rate_limit(user_id: int) -> None:
+    """Per-account limit on questions.
+
+    Must be called before anything reaches the company gateway, which is the
+    entire point -- a refusal is a lookup in a dict, while the call it prevents
+    is an embedding, a model completion, and a line on someone's bill.
+
+    Worth saying out loud that this bounds one process only, like every other
+    bucket here (see `_attempts`). It is a guard against a runaway client, not a
+    spend cap: with several API replicas the real ceiling is this number times
+    the replica count, and a genuine budget limit belongs at the gateway, which
+    is the only thing that sees every call.
+    """
+    if _register(f"ask:{user_id}", MAX_QUESTIONS_PER_USER, datetime.now(UTC)):
+        raise _rejection("You are asking questions too quickly. Please wait a moment.")

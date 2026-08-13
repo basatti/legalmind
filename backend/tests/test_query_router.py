@@ -19,6 +19,7 @@ from foundation.models import (
     DocumentChunk,
     Role,
 )
+from foundation.rate_limit import MAX_QUESTIONS_PER_USER
 from main import app
 from routers.query_router import get_embedding_provider, get_llm_provider
 from services.llm import LLMProvider
@@ -290,6 +291,98 @@ def test_an_unreachable_embedding_gateway_gives_503_not_500(client, session):
 
     print(response.status_code, response.json())
     assert response.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting.
+#
+# This is the only endpoint in the application that costs money to serve, and
+# the realistic way that bill gets run up is a frontend retry loop rather than
+# anyone malicious — which can call it thousands of times a minute with nobody
+# watching.
+# ---------------------------------------------------------------------------
+
+
+class CountingEmbeddingProvider(OfflineEmbeddingProvider):
+    """Records every call that would have gone out to the company gateway."""
+
+    calls: list[str] = []
+
+    def __init__(self) -> None:
+        # FastAPI builds an override with no arguments, so the width has to be
+        # fixed here. Without this it defaults to a narrow test vector and
+        # Postgres rejects the search with "different vector dimensions 1024
+        # and 16" -- the stored chunk was embedded at the real width.
+        super().__init__(dimensions=EMBEDDING_DIMENSIONS)
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        CountingEmbeddingProvider.calls.extend(texts)
+        return super().embed(texts)
+
+
+def test_questions_are_capped_per_user(client, session, fake_providers):
+    user_id = create_user_and_login(client, session, "pat@example.com", Role.PARTNER)
+    case = make_case(session)
+    make_searchable_chunk(session, case.id, user_id)
+
+    for number in range(MAX_QUESTIONS_PER_USER):
+        allowed = ask(client)
+        assert allowed.status_code == 200, f"question {number + 1} should have been allowed"
+
+    refused = ask(client)
+    print(f"Question {MAX_QUESTIONS_PER_USER + 1} -> {refused.status_code} {refused.json()}")
+    assert refused.status_code == 429
+
+
+def test_a_refused_question_never_reaches_the_gateway(client, session):
+    """Why the check is the first line of the handler rather than anywhere later.
+
+    A limit that refuses the request *after* paying for it protects the model
+    from being overloaded and protects the bill from nothing at all. Retrieval
+    embeds the question through the gateway before the model is ever called, so
+    that embedding call is the first thing money is spent on and the thing this
+    counts.
+    """
+    CountingEmbeddingProvider.calls.clear()
+    app.dependency_overrides[get_embedding_provider] = CountingEmbeddingProvider
+    app.dependency_overrides[get_llm_provider] = StubLLM
+    try:
+        user_id = create_user_and_login(client, session, "pat@example.com", Role.PARTNER)
+        case = make_case(session)
+        make_searchable_chunk(session, case.id, user_id)
+
+        for _ in range(MAX_QUESTIONS_PER_USER):
+            ask(client)
+        spent_before = len(CountingEmbeddingProvider.calls)
+
+        refused = ask(client)
+        spent_after = len(CountingEmbeddingProvider.calls)
+    finally:
+        app.dependency_overrides.pop(get_embedding_provider, None)
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+    print(f"gateway calls before the refusal: {spent_before}, after: {spent_after}")
+    assert refused.status_code == 429
+    assert spent_after == spent_before
+
+
+def test_one_user_reaching_the_cap_does_not_block_another(client, session, fake_providers):
+    """The bucket is keyed on the user, which is the thing this endpoint can
+    actually identify — unlike login, which has to guess from an IP address."""
+    first_id = create_user_and_login(client, session, "pat@example.com", Role.PARTNER)
+    case = make_case(session)
+    make_searchable_chunk(session, case.id, first_id)
+
+    for _ in range(MAX_QUESTIONS_PER_USER):
+        ask(client)
+    assert ask(client).status_code == 429
+
+    # Logging in as someone else replaces the cookie this client sends.
+    create_user_and_login(client, session, "dana@example.com", Role.PARTNER)
+
+    theirs = ask(client)
+    print(f"a different user's first question, right after -> {theirs.status_code}")
+    assert theirs.status_code == 200
 
 
 def test_an_unreachable_gateway_never_names_the_host_in_the_response(client, session):

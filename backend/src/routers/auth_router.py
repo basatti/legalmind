@@ -9,7 +9,11 @@ from foundation import settings
 from foundation.database import get_session
 from foundation.models import User
 from foundation.permissions import Permission, has_any_permission
-from foundation.rate_limit import check_login_attempts_for_email, check_login_rate_limit
+from foundation.rate_limit import (
+    check_login_attempts_for_email,
+    check_login_rate_limit,
+    check_password_change_rate_limit,
+)
 from foundation.schemas import (
     ChangePasswordRequest,
     LoginRequest,
@@ -224,5 +228,13 @@ def change_password(
     dependency above, though in practice it cannot be missing: `current_user`
     runs first and refuses a request without it.
     """
+    # Before the password is checked, so wrong guesses are what gets counted.
+    # Login counts its attempts the same way and for the same reason: this
+    # endpoint asks for the current password, and nothing else in the
+    # application would have noticed a common-password list being run against
+    # it by whoever is holding a session.
+    assert user.id is not None
+    check_password_change_rate_limit(user.id)
+
     service.change_password(user, data, current_session_id=session_id)
     return MessageResponse(message="Password changed successfully")

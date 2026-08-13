@@ -15,9 +15,11 @@ from foundation.models import Role, User
 from foundation.rate_limit import (
     MAX_ATTEMPTS_PER_EMAIL,
     MAX_ATTEMPTS_PER_IP,
+    MAX_PASSWORD_CHANGES_PER_USER,
     RATE_LIMIT_WINDOW,
     client_ip,
 )
+from tests.conftest import create_user_and_login
 
 
 class FakeRequest:
@@ -177,6 +179,48 @@ def test_stale_keys_are_forgotten_once_the_table_grows():
 
     assert len(rate_limit._attempts) == 1
     assert "email:live@example.com" in rate_limit._attempts
+
+
+# ---------------------------------------------------------------------------
+# Change-password: the other door with a password behind it.
+#
+# Login has been counted since LEG-22, which meant guessing was throttled at the
+# front and unthrottled at this one -- reachable by anyone holding a session,
+# and a hit takes the account outright.
+# ---------------------------------------------------------------------------
+
+
+def change_password(client, current: str = "wrongpassword1"):
+    return client.post(
+        "/auth/change-password",
+        json={"current_password": current, "new_password": "newpassword123"},
+    )
+
+
+def test_password_change_guesses_are_capped(client, session):
+    create_user_and_login(client, session, "guessed@example.com", Role.ATTORNEY)
+
+    for number in range(MAX_PASSWORD_CHANGES_PER_USER):
+        response = change_password(client)
+        print(f"Guess {number + 1} -> {response.status_code}")
+        assert response.status_code == 401
+
+    blocked = change_password(client)
+    print(f"Guess {MAX_PASSWORD_CHANGES_PER_USER + 1} -> {blocked.status_code} {blocked.json()}")
+    assert blocked.status_code == 429
+
+
+def test_the_cap_does_not_reach_across_accounts(client, session):
+    create_user_and_login(client, session, "victim@example.com", Role.ATTORNEY)
+    for _ in range(MAX_PASSWORD_CHANGES_PER_USER):
+        change_password(client)
+    assert change_password(client).status_code == 429
+
+    create_user_and_login(client, session, "unrelated@example.com", Role.ATTORNEY)
+
+    theirs = change_password(client, current="password123")
+    print(f"an unrelated account's first, correct attempt -> {theirs.status_code}")
+    assert theirs.status_code == 200
 
 
 def test_a_busy_key_survives_the_sweep():
